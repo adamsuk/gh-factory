@@ -1,0 +1,18 @@
+# The repo ruleset the factory owns. Other rulesets are never touched.
+name: factory-main
+enforcement: active
+# Applies to the default branch, whatever it is called.
+include:
+  - "~DEFAULT_BRANCH"
+pull_request:
+  dismiss_stale_reviews_on_push: false
+  require_code_owner_review: false
+  require_last_push_approval: false
+  required_review_thread_resolution: false
+  allowed_merge_methods:
+    - squash
+# Required approvals and status checks come from factory.yml defaults and the
+# repo's own .github/factory.yml.
+strict_required_status_checks_policy: false
+block_force_push: true
+block_deletion: true

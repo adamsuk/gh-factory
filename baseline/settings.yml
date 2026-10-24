@@ -1,0 +1,16 @@
+# Repository settings applied to every enrolled repo.
+repository:
+  allow_squash_merge: true
+  allow_merge_commit: false
+  allow_rebase_merge: false
+  allow_auto_merge: true
+  delete_branch_on_merge: true
+  squash_merge_commit_title: PR_TITLE
+  squash_merge_commit_message: PR_BODY
+
+# Security features. Applied where GitHub makes them available for the repo
+# (secret scanning is free on public repos; private repos need GitHub Advanced Security).
+security:
+  secret_scanning: true
+  secret_scanning_push_protection: true
+  vulnerability_alerts: true
