@@ -3,7 +3,7 @@ name = "factory"
 version = "0.1.0"
 description = "Apply a standard baseline to every GitHub repo carrying the factory topic"
 requires-python = ">=3.12"
-dependencies = ["pyyaml>=6"]
+dependencies = ["pyyaml>=6.0.3"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
