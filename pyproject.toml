@@ -9,7 +9,7 @@ dependencies = ["pyyaml>=6"]
 dev = ["pytest>=8", "ruff>=0.6"]
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=84.2.1"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
