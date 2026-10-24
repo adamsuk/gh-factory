@@ -2,6 +2,8 @@ version: 2
 updates:
   - package-ecosystem: pip
     directories: ["/"]
+    # Lower bounds in pyproject.toml are deliberate; only bump when a fix needs it.
+    versioning-strategy: increase-if-necessary
     schedule:
       interval: weekly
     labels: [dependencies]

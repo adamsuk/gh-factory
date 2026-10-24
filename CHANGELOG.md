@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Per-repo `.github/factory.yml` for skipping items, required checks, approvals and code owners.
 - `Factory sync` workflow: hourly and push-to-main apply, PR dry runs, and manual runs (dry run by default).
   It uses one GitHub App installation token per owner and skips cleanly without App secrets.
-- Reusable changelog check (`workflow_call`), generalised from adamsuk/line.
+- Reusable changelog check (`workflow_call`), generalised from adamsuk/line. It skips PRs opened by
+  Dependabot (`skip_authors` input).
+- Dependabot for this repo, keeping deliberate lower bounds in `pyproject.toml` (`increase-if-necessary`).
 - `app-manifest.json` and one-time GitHub App setup steps.
 - Python engine with tests against mocked API responses, plus CI (ruff, pytest, actionlint).

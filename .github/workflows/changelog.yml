@@ -5,7 +5,7 @@ name: Changelog
 #   jobs:
 #     changelog:
 #       uses: adamsuk/factory/.github/workflows/changelog.yml@main
-# and may pass `changelog_file` / `skip_label`. It also checks this repo's own PRs.
+# and may pass `changelog_file`, `skip_label` and `skip_authors`. It also checks this repo's own PRs.
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
@@ -17,6 +17,10 @@ on:
       skip_label:
         type: string
         default: skip-changelog
+      skip_authors:
+        description: Space-separated PR authors that never need an entry (bots bumping dependencies)
+        type: string
+        default: dependabot[bot]
 
 permissions:
   contents: read
@@ -34,11 +38,19 @@ jobs:
           LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
           CHANGELOG_FILE: ${{ inputs.changelog_file || 'CHANGELOG.md' }}
           SKIP_LABEL: ${{ inputs.skip_label || 'skip-changelog' }}
+          SKIP_AUTHORS: ${{ inputs.skip_authors || 'dependabot[bot]' }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           if [ -z "$PR" ]; then
             echo "Not a pull request; nothing to check."
             exit 0
           fi
+          for a in $SKIP_AUTHORS; do
+            if [ "$a" = "$AUTHOR" ]; then
+              echo "Skipped: PR opened by $AUTHOR."
+              exit 0
+            fi
+          done
           if jq -e --arg l "$SKIP_LABEL" 'index($l) != null' <<< "$LABELS" > /dev/null; then
             echo "Skipped: '$SKIP_LABEL' label is set."
             exit 0
