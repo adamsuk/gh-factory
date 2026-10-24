@@ -89,3 +89,13 @@ def test_example_config_is_valid(tmp_path):
 
 def test_builtin_baseline_ships_in_repo():
     assert (BUILTIN_BASELINE / "settings.yml").is_file()
+
+
+def test_codeowners_fall_back_to_first_owner_without_a_user_token(tmp_path):
+    def no_user():
+        raise RuntimeError("GITHUB_TOKEN cannot read /user")
+
+    cfg = resolve_config(None, ["touchlineHQ", "adamsuk"], None, no_user, env_for(tmp_path))
+    assert cfg.codeowners == ["@touchlineHQ"]
+    with pytest.raises(RuntimeError):
+        resolve_config(None, None, None, no_user, env_for(tmp_path))

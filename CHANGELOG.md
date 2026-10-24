@@ -23,6 +23,7 @@ guard, nothing to host, and something anyone can reuse if it is open-sourced.
   Owners for touchlineHQ and adamsuk now live in `examples/config.yml`.
 - A custom baseline (`--baseline` or `baseline:`) falls back to the built-in one for anything missing.
 - Items that need admin rights to read are shown as `unknown` instead of guessed.
+- When the token is not a user (e.g. `GITHUB_TOKEN` in Actions), CODEOWNERS defaults to the first owner.
 - The reusable changelog workflow is now `adamsuk/gh-factory/.github/workflows/changelog.yml@main`.
 - Vendored pure-Python PyYAML, so the extension needs only python3 (3.10+).
 

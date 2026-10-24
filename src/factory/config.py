@@ -166,10 +166,15 @@ def resolve_config(
         cfg.baseline = Path(baseline).expanduser()
     if cfg.baseline is not None and not cfg.baseline.is_dir():
         raise ConfigError(f"baseline directory not found: {cfg.baseline}")
-    if not cfg.owners or not cfg.codeowners:
-        me = login()
-        cfg.owners = cfg.owners or [me]
-        cfg.codeowners = cfg.codeowners or [f"@{me}"]
+    if not cfg.owners:
+        cfg.owners = [login()]
+    if not cfg.codeowners:
+        try:
+            me = login()
+        except Exception:
+            # Tokens that are not a user (e.g. GITHUB_TOKEN in Actions): fall back to the first owner.
+            me = cfg.owners[0]
+        cfg.codeowners = [f"@{me}"]
     return cfg
 
 
