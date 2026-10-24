@@ -13,7 +13,7 @@
   description: GitHub Actions updates
 - name: factory
   color: "1d76db"
-  description: Opened by adamsuk/factory
+  description: Opened by gh-factory
 - name: bug
   color: "d73a4a"
   description: Something isn't working

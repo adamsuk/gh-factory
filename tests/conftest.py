@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from factory.client import Client
-from factory.config import load_baseline, load_factory_config
+from factory.config import FactoryConfig, load_baseline
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -42,12 +42,12 @@ def b64(text):
 
 @pytest.fixture
 def cfg():
-    return load_factory_config(ROOT / "factory.yml")
+    return FactoryConfig(owners=["touchlineHQ", "adamsuk"], codeowners=["@adamsuk"])
 
 
 @pytest.fixture
 def baseline():
-    return load_baseline(ROOT / "baseline")
+    return load_baseline()
 
 
 def repo_routes(
@@ -69,6 +69,8 @@ def repo_routes(
         "default_branch": "main",
         "visibility": visibility,
         "private": visibility != "public",
+        "topics": ["factory"],
+        "permissions": {"admin": True, "push": True, "pull": True},
         "allow_squash_merge": True,
         "allow_merge_commit": True,
         "allow_rebase_merge": True,

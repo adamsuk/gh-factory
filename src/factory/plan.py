@@ -27,7 +27,7 @@ WRITE_ACTIONS = {"create", "update", "enable", "open-pr", "update-pr"}
 @dataclass
 class Change:
     item: str
-    action: str  # create | update | enable | open-pr | update-pr | drift | unavailable | skipped | error
+    action: str  # create | update | enable | open-pr | update-pr | drift | unavailable | unknown | skipped | error
     target: str
     detail: str = ""
     payload: Any = None
@@ -44,6 +44,7 @@ class RepoPlan:
     changes: list[Change] = field(default_factory=list)
     files: dict[str, str] = field(default_factory=dict)  # path -> content to commit on the sync branch
     open_pr: dict | None = None
+    enrolled: bool = True
 
     @property
     def owner(self) -> str:
@@ -87,6 +88,14 @@ def _public(repo: dict) -> bool:
     return repo.get("visibility", "private" if repo.get("private") else "public") == "public"
 
 
+def is_admin(repo: dict) -> bool:
+    """True when the caller has admin rights. Settings and security status are only visible to admins."""
+    return bool((repo.get("permissions") or {}).get("admin"))
+
+
+NEEDS_ADMIN = "needs admin rights on the repo to read"
+
+
 def _feature_on(repo: dict, *keys: str) -> bool:
     sa = repo.get("security_and_analysis") or {}
     return any((sa.get(k) or {}).get("status") == "enabled" for k in keys)
@@ -96,6 +105,9 @@ def _feature_on(repo: dict, *keys: str) -> bool:
 
 
 def plan_settings(plan: RepoPlan, repo: dict, baseline: Baseline) -> None:
+    if not is_admin(repo):
+        plan.add("settings", "unknown", "repository settings", NEEDS_ADMIN)
+        return
     diff = {k: v for k, v in baseline.settings.items() if repo.get(k) != v}
     if diff:
         detail = ", ".join(f"{k}: {json.dumps(repo.get(k))} → {json.dumps(v)}" for k, v in diff.items())
@@ -105,6 +117,9 @@ def plan_settings(plan: RepoPlan, repo: dict, baseline: Baseline) -> None:
 def plan_secret_scanning(plan: RepoPlan, repo: dict, baseline: Baseline) -> None:
     wanted = [k for k in ("secret_scanning", "secret_scanning_push_protection") if baseline.security.get(k)]
     if not wanted:
+        return
+    if not is_admin(repo):
+        plan.add("secret-scanning", "unknown", "secret scanning", NEEDS_ADMIN)
         return
     if not (_public(repo) or _feature_on(repo, "advanced_security", "secret_protection")):
         plan.add("secret-scanning", "unavailable", "secret scanning", "private repo without GitHub Secret Protection/Advanced Security")
@@ -121,8 +136,11 @@ def plan_secret_scanning(plan: RepoPlan, repo: dict, baseline: Baseline) -> None
         )
 
 
-def plan_vulnerability_alerts(plan: RepoPlan, client: Client, baseline: Baseline) -> None:
+def plan_vulnerability_alerts(plan: RepoPlan, client: Client, repo: dict, baseline: Baseline) -> None:
     if not baseline.security.get("vulnerability_alerts"):
+        return
+    if not is_admin(repo):
+        plan.add("vulnerability-alerts", "unknown", "Dependabot vulnerability alerts", NEEDS_ADMIN)
         return
     status = client.status(f"/repos/{plan.full_name}/vulnerability-alerts")
     if status == 204:
@@ -335,6 +353,7 @@ def plan_repo(client: Client, cfg: FactoryConfig, baseline: Baseline, full_name:
         plan.add("repo", "error", full_name, str(e))
         return plan
     plan.default_branch = repo.get("default_branch") or "main"
+    plan.enrolled = cfg.topic in (repo.get("topics") or [])
 
     paths: list[str] | None = None
     try:
@@ -358,7 +377,7 @@ def plan_repo(client: Client, cfg: FactoryConfig, baseline: Baseline, full_name:
     steps = [
         ("settings", lambda: plan_settings(plan, repo, baseline)),
         ("secret-scanning", lambda: plan_secret_scanning(plan, repo, baseline)),
-        ("vulnerability-alerts", lambda: plan_vulnerability_alerts(plan, client, baseline)),
+        ("vulnerability-alerts", lambda: plan_vulnerability_alerts(plan, client, repo, baseline)),
         ("ruleset", lambda: plan_ruleset(plan, client, baseline, approvals, checks)),
         ("labels", lambda: plan_labels(plan, client, baseline)),
     ]

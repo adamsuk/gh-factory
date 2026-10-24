@@ -1,0 +1,41 @@
+name: Drift check
+
+# Optional, read-only report of how public enrolled repos differ from the baseline.
+# Uses only the default GITHUB_TOKEN: no secrets, no writes. It can only see public repos,
+# and items that need admin rights to read (settings, security) show as "unknown".
+# Owners come from the `owners` input, else the FACTORY_OWNERS repository variable
+# (space-separated), else this repo's owner.
+on:
+  workflow_dispatch:
+    inputs:
+      owners:
+        description: "Space-separated owners to check (blank: FACTORY_OWNERS variable, else this repo's owner)"
+        type: string
+        required: false
+  schedule:
+    - cron: "23 7 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: gh factory plan (read-only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNERS: ${{ inputs.owners || vars.FACTORY_OWNERS || github.repository_owner }}
+        run: |
+          args=()
+          for o in $OWNERS; do args+=(--owner "$o"); done
+          # Report only: drift or errors never fail this job.
+          python3 ./gh-factory plan "${args[@]}" --summary "$GITHUB_STEP_SUMMARY" --json plan.json \
+            || echo "::warning title=Drift check::plan reported errors; see the job summary"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: drift-plan
+          path: plan.json
+          if-no-files-found: ignore

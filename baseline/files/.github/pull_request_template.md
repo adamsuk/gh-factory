@@ -1,4 +1,4 @@
-<!-- factory-managed: maintained by https://github.com/adamsuk/factory. Remove this line to take ownership. -->
+<!-- {{marker}}: maintained by https://github.com/{{workflows_repo}}. Remove this line to take ownership. -->
 ## What
 
 ## Why

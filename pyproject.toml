@@ -1,9 +1,12 @@
+# Development metadata only. Users install with `gh extension install adamsuk/gh-factory`
+# and need nothing but python3 (3.10+): PyYAML is vendored in src/factory/_vendor.
 [project]
-name = "factory"
-version = "0.1.0"
-description = "Apply a standard baseline to every GitHub repo carrying the factory topic"
-requires-python = ">=3.12"
-dependencies = ["pyyaml>=6"]
+name = "gh-factory"
+version = "0.2.0"
+description = "gh CLI extension: apply a standard baseline to every repo carrying a topic"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
@@ -21,8 +24,9 @@ pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 140
-target-version = "py312"
+target-version = "py310"
 src = ["src", "tests"]
+extend-exclude = ["src/factory/_vendor"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]

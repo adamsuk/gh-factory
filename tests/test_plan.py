@@ -165,3 +165,14 @@ def test_empty_repo(cfg, baseline):
     plan = plan_repo(FakeClient(routes), cfg, baseline, FULL)
     assert ("files", "unavailable", "files") in actions(plan)
     assert not plan.errors
+
+
+def test_without_admin_rights_admin_only_items_are_unknown(cfg, baseline):
+    routes = repo_routes(settings={"permissions": {"admin": False, "pull": True}})
+    del routes[("GET", f"/repos/{FULL}/vulnerability-alerts")]
+    client = FakeClient(routes)
+    plan = plan_repo(client, cfg, baseline, FULL)
+    got = {(c.item, c.action) for c in plan.changes}
+    assert {("settings", "unknown"), ("secret-scanning", "unknown"), ("vulnerability-alerts", "unknown")} <= got
+    assert not any(p.endswith("vulnerability-alerts") for _, p, _ in client.calls)
+    assert ("ruleset", "create") in got and not plan.errors

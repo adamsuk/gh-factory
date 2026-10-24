@@ -1,166 +1,230 @@
-# factory
+# gh-factory
 
-A software factory for every repo under **touchlineHQ** and **adamsuk**. Add the
-`factory` topic to a repo and, within the hour, it gets the same standard setup
-as every other enrolled repo. Change the standard here and every enrolled repo
-follows.
+A [GitHub CLI](https://cli.github.com) extension that applies one standard setup
+to every repo you tag. Add a topic to a repo, run `gh factory apply`, and the
+repo gets the same settings, branch ruleset, labels and starter files as every
+other enrolled repo. Change the standard once and re-apply to bring every repo
+in line.
 
-It runs in GitHub Actions in this repo, with a GitHub App token, so it needs
-nothing running anywhere else.
+- **No App, no private keys, no server.** It runs as you, with your existing
+  `gh` login. It stores no tokens or secrets.
+- **Safe by default.** `plan` is a read-only dry run: the client refuses any
+  write. File changes always arrive as one pull request per repo. It never
+  pushes to a default branch and never overwrites a file you own.
+- **Bring your own standard.** The built-in baseline is a starting point. Point
+  `--baseline` at your own directory.
 
-## What an enrolled repo gets
+## Install
 
-| Item | Key (for opt-outs) | How it is applied |
+Requirements: [`gh`](https://cli.github.com) logged in (`gh auth login`), and
+`python3` 3.10 or newer. Nothing else: the one dependency (PyYAML) is vendored.
+
+```sh
+gh extension install adamsuk/gh-factory
+gh factory --help
+```
+
+Upgrade with `gh extension upgrade factory`.
+
+## Quickstart
+
+```sh
+gh factory plan OWNER/REPO       # see what would change, read-only
+gh factory enrol OWNER/REPO      # add the `factory` topic, show the plan, confirm, apply
+gh factory plan                  # dry run across every enrolled repo
+gh factory apply                 # re-apply everywhere (asks first)
+```
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `gh factory plan [OWNER/REPO ...]` | Dry run. With no arguments, covers every non-archived repo carrying the topic under the configured owners. Named repos are planned even if they're not enrolled, and marked as such. Never writes. |
+| `gh factory apply [OWNER/REPO ...] [--yes]` | Plans, shows the plan, asks for confirmation, then applies. Named repos must be enrolled. Without a terminal it refuses unless `--yes` is given. |
+| `gh factory enrol OWNER/REPO [--yes]` | Shows the plan, asks, adds the topic, then applies. `enroll` works too. |
+| `gh factory leave OWNER/REPO` | Removes the topic only. Settings, the ruleset, labels and files stay in place, and an open factory PR is left for you to close. |
+
+Common flags: `--owner NAME` (repeatable), `--config FILE`, `--baseline DIR`,
+`--json FILE` (machine-readable plan), `--summary FILE` (append the Markdown
+plan, e.g. `$GITHUB_STEP_SUMMARY`).
+
+Exit codes: `0` ok, `1` an error in at least one repo, `2` usage error or
+confirmation declined.
+
+## What the built-in baseline applies
+
+| Item | Key (for opt-outs) | How |
 | --- | --- | --- |
 | Squash merge only, PR title/body as the commit, auto-merge allowed, branches deleted after merge | `settings` | API, in place |
-| Secret scanning and push protection (where GitHub offers it: free on public repos) | `secret-scanning` | API, in place |
+| Secret scanning and push protection, where GitHub offers it | `secret-scanning` | API, in place |
 | Dependabot vulnerability alerts | `vulnerability-alerts` | API, in place |
-| Ruleset `factory-main` on the default branch: PR required (0 approvals by default), required checks from the repo's override list (none by default), no force-push, no deletion | `ruleset` | API; updated in place, other rulesets never touched |
+| Ruleset `factory-main` on the default branch: PR required (0 approvals by default), required checks from config (none by default), no force-push, no deletion | `ruleset` | API; updated in place, other rulesets never touched |
 | Labels `skip-changelog`, `cutting edge`, `dependencies`, `github_actions`, `factory`, `bug`, `enhancement`, `documentation` | `labels` | API; created or updated, others never deleted |
 | `.github/pull_request_template.md` with a "CHANGELOG.md updated" checkbox | `pr-template` | one PR |
 | `.github/ISSUE_TEMPLATE/task.yml` issue form with acceptance criteria | `issue-template` | one PR |
-| `.github/CODEOWNERS` (`* @adamsuk` and `/.github/`) | `codeowners` | one PR |
+| `.github/CODEOWNERS` (`*` and `/.github/` owned by `@you` by default) | `codeowners` | one PR |
 | `.github/dependabot.yml` for the ecosystems found in the repo | `dependabot` | one PR |
-| `.github/workflows/codeql.yml` for the languages found (needs a public repo or GitHub Code Security) | `codeql` | one PR |
-| `.github/workflows/changelog.yml`, calling the reusable check in this repo | `changelog-check` | one PR |
+| `.github/workflows/codeql.yml` for the languages found | `codeql` | one PR |
+| `.github/workflows/changelog.yml`, calling the [reusable changelog check](#reusable-changelog-check) | `changelog-check` | one PR |
 | `CHANGELOG.md` stub, only if the repo has none | `changelog-stub` | one PR |
 
 `files` skips every file item at once.
 
-The standard lives in [`baseline/`](baseline): `settings.yml`, `ruleset.yml`,
-`labels.yml` and the templates in `baseline/files/`. Global defaults (owners,
-topic, approvals, code owners) live in [`factory.yml`](factory.yml).
+**Pull request, never main.** File changes are one commit on the
+`factory/sync` branch, on top of the default branch, with one PR per repo,
+labelled `factory` and `skip-changelog`. Re-running refreshes the same branch
+and PR, and does nothing if they're already up to date.
 
-### Files are always delivered by pull request
+**The marker rule.** Delivered files start with a `factory-managed` line. The
+factory only overwrites files that carry it. A file that exists without the
+marker is reported as **drift** and left alone. Delete the marker line to take
+ownership of a file. `CHANGELOG.md` is only ever created.
 
-The factory never pushes to a default branch. File changes go on the
-`factory/sync` branch as one commit on top of the default branch, with one PR
-per repo (labelled `factory` and `skip-changelog`). Later runs refresh the same
-branch and PR, and do nothing if it is already up to date.
+Plan statuses: **create / update / enable / open-pr / update-pr** (changes),
+**drift** (left alone), **unavailable** (GitHub doesn't offer it here),
+**unknown** (needs admin rights to read), **skipped**, **error**.
 
-A file the factory delivers carries a `factory-managed` marker on its first
-line. The factory only overwrites a file that has the marker. If a file exists
-without it, the factory leaves it alone and reports it as **drift**. Delete the
-marker line to take ownership of a file. `CHANGELOG.md` is only ever created,
-never changed.
+## Configuration
 
-### Not available on every plan
+Settings are resolved in this order, later ones winning:
 
-touchlineHQ is on GitHub Free and adamsuk is a personal account. On private
-repos there, GitHub does not offer rulesets, secret scanning or CodeQL. The
-plan reports those items as **unavailable** rather than failing.
-
-## Enrol a repo
-
-Add the topic `factory` to the repo (repo page → ⚙ next to About → Topics), or:
-
-```sh
-gh repo edit OWNER/REPO --add-topic factory
-```
-
-The next hourly run applies the baseline. To see the plan first, run the
-**Factory sync** workflow by hand with `dry_run` ticked and `repo` set to
-`OWNER/REPO`.
-
-To leave, remove the topic. Nothing is undone: settings, the ruleset and labels
-stay as they are, and you can change them freely.
-
-## Opt out of items, or set checks and approvals
-
-Add `.github/factory.yml` to the repo's default branch:
+1. **Built-in defaults.** The owner is you (the authenticated `gh` user), the
+   topic is `factory`, CODEOWNERS is `@you`, approvals are 0, and there are no
+   required checks.
+2. **A config file.** `--config FILE`, else `$GH_FACTORY_CONFIG`, else
+   `~/.config/gh-factory/config.yml` (or `$XDG_CONFIG_HOME/gh-factory/config.yml`)
+   if it exists.
+3. **Flags.** `--owner` and `--baseline`.
 
 ```yaml
-# .github/factory.yml (all keys optional)
-skip:                 # items from the table above, or `files` for all files
-  - codeql
-  - labels
-approvals: 1          # required approving reviews (0-10). Default 0.
-required_checks:      # exact check names from the repo's own CI. Default: none.
-  - Test and lint
-  - Analyze (javascript-typescript)
-codeowners:           # replaces the default @adamsuk
-  - "@adamsuk"
-  - "@touchlineHQ/maintainers"
+# ~/.config/gh-factory/config.yml (every key optional)
+owners: [my-org, my-user]       # accounts searched for enrolled repos
+topic: factory                  # enrolment topic
+codeowners: ["@my-user"]        # CODEOWNERS entries
+approvals: 0                    # required approving reviews (0-10)
+required_checks: []             # status checks required on every repo
+baseline: ./my-baseline         # custom baseline; relative to this file
+sync_branch: factory/sync
+marker: factory-managed
+workflows_repo: adamsuk/gh-factory   # where delivered workflows find the reusable check
+workflows_ref: main
 ```
 
-The factory never makes up check names: list only checks that already run on
-the repo's PRs, or every PR will be blocked. An invalid file stops the factory
-from touching that repo, and the error shows in the run summary.
+See [`examples/config.yml`](examples/config.yml).
 
-## How it runs
+## Per-repo overrides
 
-[`.github/workflows/sync.yml`](.github/workflows/sync.yml):
+A repo can opt out of items, or set its own checks and approvals, with
+`.github/factory.yml` on its default branch:
 
-| Trigger | Mode |
+```yaml
+# .github/factory.yml (every key optional)
+skip:                 # item keys from the table above, or `files` for all files
+  - codeql
+  - labels
+approvals: 1          # required approving reviews (0-10)
+required_checks:      # exact check names that already run on this repo's PRs
+  - Test and lint
+  - Analyze (javascript-typescript)
+codeowners:
+  - "@my-org/maintainers"
+```
+
+The factory never makes up check names. Listing a check that never runs blocks
+every PR. An invalid override file stops the factory from touching that repo,
+and the error shows in the plan.
+
+## Custom baselines
+
+`--baseline DIR` (or `baseline:` in config) points at a directory shaped like
+[`baseline/`](baseline):
+
+```
+my-baseline/
+  settings.yml        # repository settings and security toggles
+  ruleset.yml         # the default-branch ruleset
+  labels.yml          # standard labels
+  files/              # templates, at the path they are delivered to
+    .github/pull_request_template.md
+    .github/ISSUE_TEMPLATE/task.yml
+    .github/workflows/changelog.yml
+    CHANGELOG.md
+```
+
+Anything missing falls back to the built-in baseline, so you can override just
+`labels.yml` or a single template. Templates may use `{{marker}}`,
+`{{workflows_repo}}`, `{{workflows_ref}}` and `{{repo}}`. CODEOWNERS,
+Dependabot and CodeQL are generated from what's in each repo.
+
+## Permissions and gh scopes
+
+`gh factory` uses your `gh` login and can do only what you can. For a classic
+OAuth token (the `gh auth login` default):
+
+- `repo`: everything on repos, including private ones.
+- `workflow`: needed to deliver files under `.github/workflows/` (CodeQL and
+  the changelog check). Add it with `gh auth refresh -s workflow`.
+- `read:org`: lets discovery list an org's private repos. `gh` requests it by
+  default.
+- `admin:org` is **not** needed. The factory uses repo rulesets, never org
+  settings.
+
+Rights needed on each repo:
+
+| Operation | Needs |
 | --- | --- |
-| Hourly schedule | apply |
-| Push to `main` touching `baseline/`, `src/`, `factory.yml` or the workflow | apply |
-| Pull request touching the same | dry run, plan in the job summary |
-| Manual (**Run workflow**) | dry run by default; untick `dry_run` to apply; optional `repo` |
+| `plan` of files, labels, ruleset, PRs | read |
+| `plan` of settings, secret scanning, vulnerability alerts | admin (otherwise shown as **unknown**) |
+| Labels, the `factory/sync` branch and the PR | write |
+| Settings, secret scanning, vulnerability alerts, the ruleset, adding or removing the topic (`enrol`, `leave`) | **admin** |
 
-It runs one job per owner in `factory.yml`, each with its own App installation
-token. Discovery uses the installation's repository list, so the factory only
-sees repos the App is installed on. Each run writes the plan (what changed, or
-would change, per repo) to the job summary and uploads it as `plan.json`.
+## Limitations on GitHub Free
 
-If the App secrets are missing, the workflow skips with a notice and stays green.
+On private repos under GitHub Free (personal accounts and Free orgs), GitHub
+offers no rulesets or branch protection, no secret scanning or push protection,
+and no CodeQL code scanning. The plan marks these **unavailable** and carries on.
+Public repos get everything. Org-wide rulesets need a paid plan, which is why
+the factory applies everything repo by repo.
 
-## One-time GitHub App setup
+## Optional drift check in Actions
 
-The factory acts as its own App, not as adamsuk, so its changes are clearly
-attributed and its access is limited to the repos you install it on.
+[`.github/workflows/drift-check.yml`](.github/workflows/drift-check.yml) runs
+`gh factory plan` weekly, or on demand, using only the default `GITHUB_TOKEN`.
+It needs no secrets and makes no writes. That token can only see **public**
+repos, and it can't read admin-only items, which show as **unknown**. It
+reports in the job summary and never fails on drift. Set the `FACTORY_OWNERS`
+repository variable (space-separated) to choose the owners.
 
-**Permissions** (repository): Administration read and write, Contents read and
-write, Pull requests read and write, Issues read and write (labels), Workflows
-read and write, Metadata read. No account or organisation permissions, no
-webhook, no events. They're listed in [`app-manifest.json`](app-manifest.json).
+## Reusable changelog check
 
-1. **Create the App.** Open this link while signed in as adamsuk. It pre-fills
-   the name, permissions and a disabled webhook:
+[`.github/workflows/changelog.yml`](.github/workflows/changelog.yml) fails a PR
+that doesn't touch `CHANGELOG.md`, unless the PR has the `skip-changelog`
+label or was opened by Dependabot. Use it from any repo:
 
-   <https://github.com/settings/apps/new?name=adamsuk-factory&url=https%3A%2F%2Fgithub.com%2Fadamsuk%2Ffactory&public=true&webhook_active=false&administration=write&contents=write&pull_requests=write&issues=write&workflows=write&metadata=read>
-
-   Check the permissions match the list above. Under "Where can this GitHub App
-   be installed?" keep **Any account**. That's needed to install an App owned
-   by adamsuk on the touchlineHQ org. Other people could install it, but
-   nothing runs for them, because only owners in `factory.yml` are processed
-   and only you hold the private key. Click **Create GitHub App**.
-2. **Note the App ID** at the top of the App's settings page.
-3. **Generate a private key** (App settings → Private keys → Generate). A
-   `.pem` file downloads.
-4. **Install it on both owners.** App settings → Install App:
-   - **touchlineHQ**: choose **All repositories**, or **Only select
-     repositories**. Enrolment still needs the `factory` topic either way.
-   - **adamsuk**: the same.
-5. **Add two secrets to this repo.** adamsuk/factory → Settings → Secrets and
-   variables → Actions → New repository secret:
-   - `FACTORY_APP_ID`: the App ID (or Client ID) from step 2
-   - `FACTORY_APP_PRIVATE_KEY`: the full contents of the `.pem` file
-
-   Or from a terminal:
-
-   ```sh
-   gh secret set FACTORY_APP_ID --repo adamsuk/factory --body "<app id>"
-   gh secret set FACTORY_APP_PRIVATE_KEY --repo adamsuk/factory < adamsuk-factory.*.private-key.pem
-   ```
-
-   Then delete the downloaded `.pem`.
-6. **Check it.** Actions → Factory sync → Run workflow (dry run). Both owner
-   jobs should go green and report the number of repos scanned, and 0 enrolled
-   until you add the topic somewhere.
+```yaml
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  changelog:
+    uses: adamsuk/gh-factory/.github/workflows/changelog.yml@main
+    # with: { changelog_file: CHANGELOG.md, skip_label: skip-changelog, skip_authors: "dependabot[bot]" }
+```
 
 ## Develop
 
 ```sh
-python -m venv .venv && . .venv/bin/activate
+python3 -m venv .venv && . .venv/bin/activate
 pip install -e '.[dev]'
 ruff check . && ruff format --check . && pytest
-python -m factory                     # dry run with your gh login (read-only)
-python -m factory --repo OWNER/REPO   # one enrolled repo
+gh extension install .          # run your checkout as `gh factory`
 ```
 
-Without `GITHUB_TOKEN` or `GH_TOKEN` the engine calls the API through your
-logged-in `gh` CLI. A dry run is enforced read-only: the client refuses any
-non-GET request. Every change needs a dated entry in [CHANGELOG.md](CHANGELOG.md).
-The reusable changelog check is
-[`.github/workflows/changelog.yml`](.github/workflows/changelog.yml).
+Every change needs a dated entry in [CHANGELOG.md](CHANGELOG.md).
+
+## Licence
+
+[MIT](LICENSE). Vendored PyYAML is MIT too ([licence](src/factory/_vendor/yaml/LICENSE)).

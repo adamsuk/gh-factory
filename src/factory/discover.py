@@ -1,4 +1,4 @@
-"""Find enrolled repos: non-archived repos carrying the factory topic."""
+"""Find enrolled repos (non-archived repos carrying the factory topic) and manage the topic."""
 
 from __future__ import annotations
 
@@ -28,18 +28,19 @@ def list_owner_repos(client: Client, owner: str) -> list[dict]:
     return client.paginate(f"/users/{owner}/repos", {"type": "owner"})
 
 
-def discover(client: Client, owners: list[str], topic: str, only: str | None = None) -> tuple[list[str], str, int]:
-    """Return (sorted full names, source, repos scanned). Uses the App installation's repo list when the
-    token is an installation token, otherwise lists each owner's repos."""
+def discover(client: Client, owners: list[str], topic: str) -> tuple[list[str], int]:
+    """Return (sorted full names of enrolled repos, number of repos scanned)."""
     wanted = {o.lower() for o in owners}
-    try:
-        repos = client.paginate("/installation/repositories", key="repositories")
-        source = "installation"
-    except ApiError:
-        repos, source = [], "owner listing"
-        for owner in owners:
-            repos += list_owner_repos(client, owner)
+    repos: list[dict] = []
+    for owner in owners:
+        repos += list_owner_repos(client, owner)
     names = sorted({r["full_name"] for r in repos if _enrolled(r, topic, wanted)}, key=str.lower)
-    if only:
-        names = [n for n in names if n.lower() == only.lower()]
-    return names, source, len(repos)
+    return names, len({r["full_name"] for r in repos})
+
+
+def get_topics(client: Client, full_name: str) -> list[str]:
+    return list((client.get(f"/repos/{full_name}/topics") or {}).get("names") or [])
+
+
+def set_topics(client: Client, full_name: str, names: list[str]) -> None:
+    client.put(f"/repos/{full_name}/topics", {"names": names})

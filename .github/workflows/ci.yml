@@ -10,19 +10,39 @@ permissions:
 
 jobs:
   test:
-    name: Test and lint
+    name: Test and lint (Python ${{ matrix.python }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.13"]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
+          python-version: ${{ matrix.python }}
       - run: pip install -e '.[dev]'
       - run: ruff check --output-format github .
       - run: ruff format --check .
       - run: pytest -q
-      - name: Dry-run the engine against local fixtures only
-        run: python -m factory --help > /dev/null
+
+  extension:
+    name: Extension runs with bare python3
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Entrypoint is executable and needs no pip installs
+        run: |
+          test -x gh-factory
+          python3 -m venv /tmp/bare
+          /tmp/bare/bin/python ./gh-factory --help
+          for c in plan apply enrol leave; do /tmp/bare/bin/python ./gh-factory "$c" --help > /dev/null; done
+      - name: Install as a gh extension from this checkout
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh extension install .
+          gh factory --help
 
   actionlint:
     name: Lint workflows

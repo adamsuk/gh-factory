@@ -1,5 +1,4 @@
-import yaml
-
+from factory._vendor import yaml
 from factory.render import detect_codeql_languages, detect_ecosystems, render_codeql, render_dependabot
 
 
@@ -52,4 +51,4 @@ def test_rendered_templates_are_valid(cfg, baseline):
             if path.endswith(".yml"):
                 yaml.safe_load(text)
     caller = yaml.safe_load(render_template(baseline, cfg, ".github/workflows/changelog.yml", "app"))
-    assert caller["jobs"]["changelog"]["uses"] == "adamsuk/factory/.github/workflows/changelog.yml@main"
+    assert caller["jobs"]["changelog"]["uses"] == "adamsuk/gh-factory/.github/workflows/changelog.yml@main"

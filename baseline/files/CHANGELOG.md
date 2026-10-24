@@ -7,4 +7,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- CHANGELOG.md, added by [adamsuk/factory](https://github.com/adamsuk/factory).
+- CHANGELOG.md, added by [gh-factory](https://github.com/{{workflows_repo}}).

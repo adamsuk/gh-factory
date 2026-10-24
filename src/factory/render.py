@@ -5,8 +5,7 @@ from __future__ import annotations
 import hashlib
 import posixpath
 
-import yaml
-
+from . import yamlio
 from .config import Baseline, FactoryConfig
 
 SKIP_DIRS = ("node_modules/", "vendor/", "dist/", "build/", ".venv/", "third_party/")
@@ -100,7 +99,7 @@ def render_dependabot(cfg: FactoryConfig, paths: list[str]) -> str:
                 "groups": {"minor-and-patch": {"update-types": ["minor", "patch"]}},
             }
         )
-    body = yaml.safe_dump({"version": 2, "updates": updates}, sort_keys=False, default_flow_style=False)
+    body = yamlio.dump({"version": 2, "updates": updates})
     return header(cfg) + body
 
 

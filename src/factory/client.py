@@ -1,13 +1,14 @@
-"""Minimal GitHub REST client with a hard read-only mode for dry runs."""
+"""Minimal GitHub REST client over the caller's `gh` login, with a hard read-only mode for dry runs.
+
+No tokens are read or stored here: every request goes through `gh api`, which uses whatever
+`gh auth login` (or GH_TOKEN in CI) already provides."""
 
 from __future__ import annotations
 
 import json
 import re
 import subprocess
-import urllib.error
 import urllib.parse
-import urllib.request
 from typing import Any
 
 API = "https://api.github.com"
@@ -101,33 +102,8 @@ class Client:
         return self.request("PUT", path, body)[1]
 
 
-class HttpClient(Client):
-    """Talks to the API directly with a token (used in CI with the App token)."""
-
-    def __init__(self, token: str, read_only: bool = True):
-        super().__init__(read_only)
-        self._token = token
-
-    def _raw(self, method, url, body):
-        data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(url, data=data, method=method)
-        req.add_header("Accept", "application/vnd.github+json")
-        req.add_header("X-GitHub-Api-Version", "2022-11-28")
-        req.add_header("Authorization", f"Bearer {self._token}")
-        req.add_header("User-Agent", "adamsuk-factory")
-        if data is not None:
-            req.add_header("Content-Type", "application/json")
-        try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                headers = {k.lower(): v for k, v in resp.headers.items()}
-                return resp.status, headers, resp.read().decode()
-        except urllib.error.HTTPError as e:
-            headers = {k.lower(): v for k, v in e.headers.items()}
-            return e.code, headers, e.read().decode()
-
-
 class GhCliClient(Client):
-    """Uses the authenticated `gh` CLI, so no token is handled here (local runs)."""
+    """Sends every request through the authenticated `gh` CLI."""
 
     def _raw(self, method, url, body):
         cmd = ["gh", "api", "--include", "--method", method, url.removeprefix(API)]
@@ -152,3 +128,10 @@ def parse_include_output(out: str) -> tuple[int, dict[str, str], str]:
         if sep:
             headers[k.strip().lower()] = v.strip()
     return status, headers, body
+
+
+def authenticated_login(client: Client) -> str:
+    try:
+        return client.get("/user")["login"]
+    except (ApiError, KeyError, TypeError) as e:
+        raise ApiError(401, "could not read the authenticated user; run `gh auth login` or pass --owner", "/user") from e

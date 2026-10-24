@@ -4,7 +4,7 @@ name: Changelog
 # Generic and reusable: other repos call it with
 #   jobs:
 #     changelog:
-#       uses: adamsuk/factory/.github/workflows/changelog.yml@main
+#       uses: adamsuk/gh-factory/.github/workflows/changelog.yml@main
 # and may pass `changelog_file`, `skip_label` and `skip_authors`. It also checks this repo's own PRs.
 on:
   pull_request:

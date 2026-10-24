@@ -1,0 +1,29 @@
+# Example user config for gh factory. Copy to ~/.config/gh-factory/config.yml.
+# Every key is optional; anything left out uses the built-in default.
+
+# Accounts (users or orgs) searched for repos carrying the topic. Default: you.
+owners:
+  - touchlineHQ
+  - adamsuk
+
+# Add this topic to a repo to enrol it. Default: factory.
+topic: factory
+
+# Written into .github/CODEOWNERS. Default: @<you>.
+codeowners:
+  - "@adamsuk"
+
+# Required approving reviews on the default branch. Default: 0.
+approvals: 0
+
+# Required status checks for every repo. Default: none. Usually better set per repo
+# in .github/factory.yml, because check names differ between repos.
+required_checks: []
+
+# Your own standard. Any file missing here falls back to the built-in baseline.
+# Relative paths are relative to this file.
+# baseline: ./my-baseline
+
+# Point delivered files at your fork's reusable workflows if you fork gh-factory.
+# workflows_repo: adamsuk/gh-factory
+# workflows_ref: main

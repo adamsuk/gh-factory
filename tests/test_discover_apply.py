@@ -10,29 +10,9 @@ def _repo(full, topics, archived=False):
     return {"full_name": full, "owner": {"login": full.split("/")[0]}, "topics": topics, "archived": archived}
 
 
-def test_discover_with_installation_token():
-    client = FakeClient(
-        {
-            ("GET", "/installation/repositories"): (
-                200,
-                {
-                    "repositories": [
-                        _repo("touchlineHQ/a", ["factory"]),
-                        _repo("touchlineHQ/b", ["other"]),
-                        _repo("touchlineHQ/c", ["factory"], archived=True),
-                        _repo("someone/d", ["factory"]),
-                    ]
-                },
-            )
-        }
-    )
-    assert discover(client, ["touchlineHQ"], "factory") == (["touchlineHQ/a"], "installation", 4)
-
-
 def test_discover_with_user_token_lists_owners():
     client = FakeClient(
         {
-            ("GET", "/installation/repositories"): (403, {"message": "must use an installation token"}),
             ("GET", "/users/touchlineHQ"): (200, {"type": "Organization"}),
             ("GET", "/orgs/touchlineHQ/repos"): (200, [_repo("touchlineHQ/a", ["factory"])]),
             ("GET", "/users/adamsuk"): (200, {"type": "User"}),
@@ -40,9 +20,8 @@ def test_discover_with_user_token_lists_owners():
             ("GET", "/user/repos"): (200, [_repo("adamsuk/x", ["factory"]), _repo("touchlineHQ/a", ["factory"])]),
         }
     )
-    names, source, _ = discover(client, ["touchlineHQ", "adamsuk"], "factory")
-    assert names == ["adamsuk/x", "touchlineHQ/a"] and source == "owner listing"
-    assert discover(client, ["touchlineHQ", "adamsuk"], "factory", only="ADAMSUK/x")[0] == ["adamsuk/x"]
+    names, scanned = discover(client, ["touchlineHQ", "adamsuk"], "factory")
+    assert names == ["adamsuk/x", "touchlineHQ/a"] and scanned == 2
     assert client.writes == []
 
 
