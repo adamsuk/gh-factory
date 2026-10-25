@@ -5,6 +5,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## 2026-10-25 (agents section)
+
+### Added
+
+- An optional `agents:` section in a repo's `.github/factory.yml`, for the factory's coding and
+  review agents: `merge` (default `false`), `roles` (any of `intake`, `research`, `builder`,
+  `reviewer`; default `builder` and `reviewer`) and `issue_label` (default `factory`). It is
+  validated like the rest of the file, and an invalid section stops the factory touching the repo.
+- `gh factory plan` shows each repo's agent settings in the Markdown plan and as an `agents` object
+  in `--json`, with notes when `merge: true` has no required checks to gate it, or when the issue
+  label is not a baseline label. gh-factory never acts on these settings; the agents read them.
+- README: an "Agents" section with examples.
+
+### Changed
+
+- The baseline `factory` label's description now reads "Opened by gh-factory, or an issue queued
+  for the factory agents", because agents pick up issues with that label. The next apply updates
+  the label's description in enrolled repos.
+
 ## 2026-10-25 (v0.1.0)
 
 ### Changed

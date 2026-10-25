@@ -132,11 +132,58 @@ required_checks:      # exact check names that already run on this repo's PRs
   - Analyze (javascript-typescript)
 codeowners:
   - "@my-org/maintainers"
+agents:               # what the factory agents may do here; see "Agents" below
+  merge: false
 ```
 
 The factory never makes up check names. Listing a check that never runs blocks
 every PR. An invalid override file stops the factory from touching that repo,
 and the error shows in the plan.
+
+## Agents
+
+The optional `agents:` section of `.github/factory.yml` tells coding and review
+agents (for example Grok Build driven by a foreman bot) what they may do in the
+repo. gh-factory validates it and shows it in `plan` (Markdown and `--json`),
+but never acts on it: the agents read it themselves before they work.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `merge` | `false` | Agents may merge their own PRs. Off unless set to `true`. Even then an agent should merge only when the repo's required checks are green, so the plan adds a note if `merge: true` but the repo has no required checks. |
+| `roles` | `[builder, reviewer]` | Which roles run here: `intake` (files issues from signals), `research` (keeps research content current), `builder` (turns labelled issues into PRs), `reviewer` (reviews PRs). `[]` means no agent works here. |
+| `issue_label` | `factory` | Only open issues with this label are picked up by the builder. `factory` is a baseline label; a different label gets a plan note so you remember to create it. |
+
+Unknown keys, unknown roles, duplicate roles and non-boolean `merge` values are
+errors, and as with any invalid override file the factory then leaves the repo alone.
+
+```yaml
+# Default: builder and reviewer, no merging. Same as leaving `agents:` out.
+agents:
+  merge: false
+```
+
+```yaml
+# A repo where agents may merge once its required checks are green.
+required_checks:
+  - Test and lint
+agents:
+  merge: true
+  roles: [builder, reviewer]
+```
+
+```yaml
+# A research repo: research and review only, picked up by a custom label.
+agents:
+  roles: [research, reviewer]
+  issue_label: research-update
+```
+
+In the plan this shows as a line such as
+`Agents: roles builder, reviewer · merge off · issue label `factory``, and in
+`--json` each repo has an `agents` object with `merge`, `roles`, `issue_label`
+and `notes` (it is `null` when the override file is invalid). The `factory`
+label is shared with gh-factory's own sync PRs, so agents should pick up issues
+only, never pull requests.
 
 ## Custom baselines
 
