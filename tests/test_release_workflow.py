@@ -170,3 +170,78 @@ def test_end_to_end_release_pr_then_release(rel, tmp_path, monkeypatch):
     calls.write_text("")
     rel["main"]()
     assert calls.read_text() == ""
+
+
+@pytest.mark.parametrize(
+    ("entry", "dated", "sub"),
+    [
+        ("## 2026-10-25 (x)\n\n### Added", "##", "###"),  # house style
+        ("### 2026-10-25 (x)\n\n#### Added", "###", "####"),  # one level too deep
+        ("#### 2026-10-25 (x)\n\n##### Added", "####", "#####"),  # two levels too deep
+        ("# 2026-10-25 (x)\n\n## Added", "#", "##"),  # too shallow
+    ],
+)
+def test_cut_release_relevels_entries_to_house_levels(rel, entry, dated, sub):
+    text = f"# Changelog\n\n## [Unreleased]\n\n{entry}\n\n- Thing.\n\n## [0.1.0] - 2026-10-24\n\n### 2026-10-24\n\n- Old.\n"
+    new, notes = rel["cut_release"](text, "0.2.0", "2026-10-26")
+    assert notes == "### 2026-10-25 (x)\n\n#### Added\n\n- Thing."
+    assert "## [0.2.0] - 2026-10-26\n\n### 2026-10-25 (x)\n\n#### Added\n\n- Thing.\n\n## [0.1.0]" in new
+
+
+def test_relevel_handles_mixed_depths_nesting_fences_and_undated_headings(rel):
+    block = "\n".join(
+        [
+            "### Note before any entry",
+            "",
+            "#### Detail",
+            "",
+            "## 2026-10-25 (house)",
+            "",
+            "### Added",
+            "",
+            "#### Sub-point",
+            "",
+            "```md",
+            "## 2026-01-01 not a heading",
+            "```",
+            "",
+            "#### 2026-10-24 (too deep)",
+            "",
+            "##### Fixed",
+            "",
+            "##### Changed",
+            "",
+            "#### 2026-10-23 (no subsections)",
+            "",
+            "- Plain.",
+        ]
+    )
+    heads = [line for line in rel["_relevel"](block).splitlines() if line.startswith("#")]
+    assert heads == [
+        "### Note before any entry",
+        "#### Detail",
+        "### 2026-10-25 (house)",
+        "#### Added",
+        "##### Sub-point",
+        "## 2026-01-01 not a heading",
+        "### 2026-10-24 (too deep)",
+        "#### Fixed",
+        "#### Changed",
+        "### 2026-10-23 (no subsections)",
+    ]
+
+
+def test_changelog_release_sections_use_house_levels():
+    """Every dated entry under a released version is `###`, with its subsections at `####`."""
+    import re
+
+    text = (ROOT / "CHANGELOG.md").read_text()
+    unreleased = re.search(r"^## \[Unreleased\]", text, re.M).end()
+    released = text[unreleased:]
+    released = released[re.search(r"^## \[", released, re.M).start() :]
+    for line in released.splitlines():
+        m = re.match(r"^(#+) +(.*)$", line)
+        if not m or m.group(1) == "##":
+            continue
+        dated = bool(re.match(r"\d{4}-\d{2}-\d{2}\b", m.group(2)))
+        assert len(m.group(1)) == (3 if dated else 4), line

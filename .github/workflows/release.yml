@@ -113,13 +113,43 @@ jobs:
               return f"{major}.{minor}.{patch + 1}"
 
 
-          def _demote(block):
-              out, fenced = [], False
-              for line in block.splitlines():
+          def _relevel(block):
+              """Re-level moved entries to the house levels under `## [X.Y.Z]`.
+
+              Each dated entry heading (`YYYY-MM-DD ...`) becomes `###` and the headings under it keep
+              their relative depth starting at `####`, however deep the entry was written under
+              Unreleased (house style is `## YYYY-MM-DD (topic)` with `### Added`). Headings before the
+              first dated entry are shifted so the shallowest is `###`. Fenced code is left alone.
+              """
+              lines = block.splitlines()
+              fenced, heads = False, []  # (index, level, is_dated)
+              for i, line in enumerate(lines):
                   if line.lstrip().startswith(("```", "~~~")):
                       fenced = not fenced
-                  out.append("#" + line if not fenced and re.match(r"^#{1,5} ", line) else line)
-              return "\n".join(out)
+                      continue
+                  h = None if fenced else re.match(r"^(#{1,6}) +(.*)$", line)
+                  if h:
+                      heads.append((i, len(h.group(1)), bool(re.match(r"\d{4}-\d{2}-\d{2}\b", h.group(2)))))
+              groups, current = [], []  # runs of headings, each starting at a dated heading
+              for head in heads:
+                  if head[2] and current:
+                      groups.append(current)
+                      current = []
+                  current.append(head)
+              if current:
+                  groups.append(current)
+              for group in groups:
+                  if group[0][2]:
+                      targets = {group[0][0]: 3}
+                      subs = group[1:]
+                      top = min((lvl for _, lvl, _ in subs), default=0)
+                      targets.update({i: 4 + lvl - top for i, lvl, _ in subs})
+                  else:
+                      top = min(lvl for _, lvl, _ in group)
+                      targets = {i: 3 + lvl - top for i, lvl, _ in group}
+                  for i, level in targets.items():
+                      lines[i] = "#" * min(level, 6) + " " + lines[i].lstrip("#").lstrip()
+              return "\n".join(lines)
 
 
           def cut_release(text, version, date):
@@ -130,7 +160,7 @@ jobs:
               rest = text[m.end():]
               nxt = re.search(r"^## \[", rest, re.M)
               block, tail = (rest[: nxt.start()], rest[nxt.start():]) if nxt else (rest, "")
-              notes = _demote(block.strip("\n")) or "No changelog entries."
+              notes = _relevel(block.strip("\n")) or "No changelog entries."
               new = f"{text[: m.end()]}\n## [{version}] - {date}\n\n{notes}\n\n{tail}"
               return new.rstrip("\n") + "\n", notes
 

@@ -10,6 +10,15 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+## 2026-10-25 (release changelog heading levels)
+
+### Fixed
+
+- The release workflow re-levels the entries it moves from `## [Unreleased]`: each dated entry
+  becomes `###` under `## [X.Y.Z] - date` and its headings keep their relative depth from `####`,
+  so an entry written one or two levels too deep no longer comes out deeper still. The 0.4.0
+  entry, which came out a level too deep, is re-levelled to match.
+
 ## [0.5.0] - 2026-10-25
 
 ### 2026-10-25 (multi-line test command)
@@ -30,9 +39,9 @@ that PR tags and publishes the release.
 
 ## [0.4.0] - 2026-10-25
 
-#### 2026-10-25 (CodeRabbit config)
+### 2026-10-25 (CodeRabbit config)
 
-##### Added
+#### Added
 
 - `.coderabbit.yaml` as a baseline file (skip key `coderabbit`). It sets the `chill` profile,
   en-GB, no draft reviews, and a review instruction to treat the PR description as a claim and to
