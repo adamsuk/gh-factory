@@ -1,0 +1,231 @@
+name: Release
+
+# Automatic semver releases from Conventional Commit titles, with a hand-written CHANGELOG.
+# Generic and reusable: a repo calls it on every push to its default branch, e.g.
+#   on:
+#     push:
+#       branches: [main]
+#   jobs:
+#     release:
+#       permissions:
+#         contents: write
+#         pull-requests: write
+#       uses: adamsuk/gh-factory/.github/workflows/release.yml@<commit-sha> # vX.Y.Z
+#       with:
+#         version_files: pyproject.toml src/pkg/__init__.py
+#
+# How it works (only the default GITHUB_TOKEN is used, no PAT or GitHub App):
+# 1. After a feat, fix, perf or breaking (`!` / `BREAKING CHANGE:`) commit lands, it works out the
+#    next version from every commit since the last tag (major > minor > patch; chore, docs, ci,
+#    test and the rest release nothing) and opens or refreshes one release PR,
+#    `chore(release): vX.Y.Z`. That PR moves everything under `## [Unreleased]` in the changelog
+#    under a new `## [X.Y.Z] - YYYY-MM-DD` heading (each entry's headings drop one level) and bumps
+#    the version string in `version_files`.
+# 2. When that release PR is merged, it tags the merge commit and publishes a GitHub release whose
+#    notes are that version's changelog section.
+# The release commit goes through a PR because rulesets block direct pushes to main, and adding
+# GitHub Actions as a bypass actor would weaken them. GitHub does not start workflows for a PR the
+# GITHUB_TOKEN opens, so close and reopen the release PR (or push to it) to run its checks.
+# The repo setting "Allow GitHub Actions to create and approve pull requests" must be on.
+on:
+  workflow_call:
+    inputs:
+      changelog_file:
+        type: string
+        default: CHANGELOG.md
+      version_files:
+        description: Space-separated files whose quoted version string (on a line mentioning "version") is bumped
+        type: string
+        default: ""
+      tag_prefix:
+        type: string
+        default: v
+      release_branch:
+        type: string
+        default: release/next
+      initial_version:
+        description: Version to bump from when there is no release tag yet
+        type: string
+        default: 0.0.0
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Release, or open or refresh the release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANGELOG_FILE: ${{ inputs.changelog_file }}
+          VERSION_FILES: ${{ inputs.version_files }}
+          TAG_PREFIX: ${{ inputs.tag_prefix }}
+          RELEASE_BRANCH: ${{ inputs.release_branch }}
+          INITIAL_VERSION: ${{ inputs.initial_version }}
+          BASE_BRANCH: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import datetime
+          import os
+          import re
+          import subprocess
+          import tempfile
+
+          SEMVER = r"(\d+)\.(\d+)\.(\d+)"
+          LEVELS = {None: 0, "patch": 1, "minor": 2, "major": 3}
+
+
+          def run(*args, check=True):
+              return subprocess.run(args, check=check, text=True, capture_output=True).stdout.strip()
+
+
+          def classify(subject, body=""):
+              """Release level for one commit: major, minor, patch or None."""
+              m = re.match(r"^(\w+)(\([^)]*\))?(!)?: \S", subject)
+              if not m:
+                  return None
+              kind, bang = m.group(1).lower(), m.group(3)
+              if kind == "chore" and (m.group(2) or "").lower() == "(release)":
+                  return None
+              if bang or re.search(r"^BREAKING[ -]CHANGE: ", body, re.M):
+                  return "major"
+              if kind == "feat":
+                  return "minor"
+              if kind in ("fix", "perf"):
+                  return "patch"
+              return None
+
+
+          def bump(version, level):
+              major, minor, patch = (int(x) for x in re.fullmatch(SEMVER, version).groups())
+              if level == "major":
+                  return f"{major + 1}.0.0"
+              if level == "minor":
+                  return f"{major}.{minor + 1}.0"
+              return f"{major}.{minor}.{patch + 1}"
+
+
+          def _demote(block):
+              out, fenced = [], False
+              for line in block.splitlines():
+                  if line.lstrip().startswith(("```", "~~~")):
+                      fenced = not fenced
+                  out.append("#" + line if not fenced and re.match(r"^#{1,5} ", line) else line)
+              return "\n".join(out)
+
+
+          def cut_release(text, version, date):
+              """Move the Unreleased entries under a new version heading. Returns (text, notes)."""
+              m = re.search(r"^## \[Unreleased\][^\n]*\n", text, re.M | re.I)
+              if not m:
+                  raise SystemExit("::error::No '## [Unreleased]' heading in the changelog.")
+              rest = text[m.end():]
+              nxt = re.search(r"^## \[", rest, re.M)
+              block, tail = (rest[: nxt.start()], rest[nxt.start():]) if nxt else (rest, "")
+              notes = _demote(block.strip("\n")) or "No changelog entries."
+              new = f"{text[: m.end()]}\n## [{version}] - {date}\n\n{notes}\n\n{tail}"
+              return new.rstrip("\n") + "\n", notes
+
+
+          def section(text, version):
+              """The notes under '## [version]', for the GitHub release."""
+              m = re.search(rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)", text, re.M | re.S)
+              return m.group(1).strip() if m else None
+
+
+          def bump_files(paths, old, new):
+              for path in paths:
+                  with open(path) as f:
+                      text = f.read()
+                  pattern = re.compile(rf"^(.*version.*)([\"']){re.escape(old)}\2", re.M | re.I)
+                  text, n = pattern.subn(lambda m: f"{m.group(1)}{m.group(2)}{new}{m.group(2)}", text)
+                  if not n:
+                      raise SystemExit(f"::error::No version string {old!r} found in {path}.")
+                  with open(path, "w") as f:
+                      f.write(text)
+
+
+          def main():
+              env = os.environ
+              changelog, prefix = env["CHANGELOG_FILE"], env["TAG_PREFIX"]
+              branch, base = env["RELEASE_BRANCH"], env["BASE_BRANCH"]
+              sha = run("git", "rev-parse", "HEAD")
+              subject = run("git", "log", "-1", "--format=%s")
+
+              m = re.match(rf"^chore\(release\): {re.escape(prefix)}({SEMVER})(?: \(#\d+\))?$", subject)
+              if m:
+                  version = m.group(1)
+                  tag = prefix + version
+                  if run("git", "tag", "--list", tag):
+                      print(f"{tag} already exists; nothing to do.")
+                      return
+                  with open(changelog) as f:
+                      notes = section(f.read(), version)
+                  if notes is None:
+                      raise SystemExit(f"::error::{changelog} has no '## [{version}]' section.")
+                  with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as f:
+                      f.write(notes + "\n")
+                  run("gh", "release", "create", tag, "--target", sha, "--title", tag, "--notes-file", f.name)
+                  print(f"Released {tag}.")
+                  return
+
+              tags = [t for t in run("git", "tag", "--list", f"{prefix}*", "--sort=-v:refname").splitlines()
+                      if re.fullmatch(re.escape(prefix) + SEMVER, t)]
+              last = tags[0] if tags else None
+              current = last[len(prefix):] if last else env["INITIAL_VERSION"]
+              log = run("git", "log", "--format=%s%x00%b%x1e", f"{last}..HEAD" if last else "HEAD")
+              level = None
+              for entry in filter(None, (e.strip("\n") for e in log.split("\x1e"))):
+                  s, _, b = entry.partition("\x00")
+                  got = classify(s, b)
+                  if LEVELS[got] > LEVELS[level]:
+                      level = got
+              if level is None:
+                  print(f"No feat, fix, perf or breaking commits since {last or 'the start'}; no release.")
+                  return
+              version = bump(current, level)
+              tag = prefix + version
+              today = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+
+              run("git", "checkout", "-B", branch)
+              with open(changelog) as f:
+                  text, notes = cut_release(f.read(), version, today)
+              with open(changelog, "w") as f:
+                  f.write(text)
+              files = env["VERSION_FILES"].split()
+              bump_files(files, current, version)
+              run("git", "-c", "user.name=github-actions[bot]",
+                  "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com",
+                  "commit", "-m", f"chore(release): {tag}", "--", changelog, *files)
+              run("git", "push", "--force", "origin", f"HEAD:refs/heads/{branch}")
+
+              title = f"chore(release): {tag}"
+              body = (f"Release {tag} ({level} bump from {last or current}).\n\n"
+                      f"Merging this PR moves the `## [Unreleased]` entries in `{changelog}` under "
+                      f"`## [{version}]`, then the release workflow tags the merge commit `{tag}` and "
+                      "publishes a GitHub release with these notes. It is refreshed after every "
+                      "releasable merge.\n\n"
+                      "Checks do not start on a PR opened by GitHub Actions: close and reopen this PR "
+                      "to run them, then squash-merge it with this title.\n\n"
+                      f"---\n\n{notes}\n")
+              existing = run("gh", "pr", "list", "--head", branch, "--base", base, "--state", "open",
+                             "--json", "number", "--jq", ".[0].number")
+              if existing:
+                  run("gh", "pr", "edit", existing, "--title", title, "--body", body)
+                  print(f"Refreshed release PR #{existing} for {tag}.")
+              else:
+                  print(run("gh", "pr", "create", "--head", branch, "--base", base,
+                            "--title", title, "--body", body))
+
+
+          if __name__ == "__main__":
+              main()
+          PY
