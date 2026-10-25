@@ -103,3 +103,12 @@ def test_pr_template_changelog_line_reads_well_without_a_changelog(cfg, baseline
     text = render_template(baseline, cfg, ".github/pull_request_template.md", "app")
     line = next(ln for ln in text.splitlines() if "CHANGELOG" in ln)
     assert line == "- [ ] CHANGELOG.md updated, if this repo keeps one (or the `skip-changelog` label applied)"
+
+
+def test_issue_template_acceptance_criteria_is_a_placeholder_not_prefilled(cfg, baseline):
+    # A prefilled `value` satisfies `required: true` on its own, so an empty checklist could be submitted.
+    form = yaml.safe_load(render_template(baseline, cfg, ".github/ISSUE_TEMPLATE/task.yml", "app"))
+    acceptance = next(item for item in form["body"] if item.get("id") == "acceptance")
+    assert "value" not in acceptance["attributes"]
+    assert acceptance["attributes"]["placeholder"].strip().startswith("- [ ]")
+    assert acceptance["validations"]["required"] is True
