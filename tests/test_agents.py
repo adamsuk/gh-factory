@@ -142,3 +142,10 @@ def test_plan_shows_a_test_command_with_backticks_exactly(cfg, baseline):
     plan = plan_with(cfg, baseline, "agents:\n  test_command: echo `date` && pytest -q\n")
     md = markdown([plan], mode="dry run", scope="", topic="factory")
     assert "test command ``echo `date` && pytest -q``" in md
+
+
+def test_plan_keeps_the_line_breaks_of_a_multi_line_test_command(cfg, baseline):
+    plan = plan_with(cfg, baseline, "agents:\n  test_command: |\n    pytest -q\n    ruff check .\n")
+    md = markdown([plan], mode="dry run", scope="", topic="factory")
+    assert "· test command below\n\n```sh\npytest -q\nruff check .\n```\n" in md
+    assert as_json([plan])[0]["agents"]["test_command"] == "pytest -q\nruff check ."

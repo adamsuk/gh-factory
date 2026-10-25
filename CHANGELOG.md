@@ -10,6 +10,13 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+#### 2026-10-25 (multi-line test command)
+
+##### Fixed
+
+- A multi-line `agents.test_command` now shows in the plan as a fenced code block under the Agents
+  line, so its line breaks are kept instead of rendering as one space-joined command.
+
 #### 2026-10-25 (agents review bot and test command)
 
 ##### Added

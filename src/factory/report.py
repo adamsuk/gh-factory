@@ -29,6 +29,13 @@ def code_span(text: str) -> str:
     return f"{fence}{pad}{text}{pad}{fence}"
 
 
+def code_block(text: str) -> list[str]:
+    """A fenced Markdown code block showing `text` with its line breaks, even when it contains backticks."""
+    longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
+    fence = "`" * max(3, longest + 1)
+    return [f"{fence}sh", *text.splitlines(), fence]
+
+
 def markdown(plans: list[RepoPlan], *, mode: str, scope: str, topic: str) -> str:
     lines = [f"# Factory plan ({mode})", "", scope, ""]
     if not plans:
@@ -41,12 +48,20 @@ def markdown(plans: list[RepoPlan], *, mode: str, scope: str, topic: str) -> str
         if p.agents is not None:
             a = p.agents
             roles = ", ".join(a.roles) or "none"
-            test = code_span(a.test_command) if a.test_command else "from CI"
+            multi_line = bool(a.test_command) and "\n" in a.test_command
+            if not a.test_command:
+                test = "from CI"
+            elif multi_line:
+                test = "below"
+            else:
+                test = code_span(a.test_command)
             lines += [
                 f"Agents: roles {roles} · merge {'on' if a.merge else 'off'} · issue label `{a.issue_label}`"
                 f" · review bot {a.review_bot} · test command {test}",
                 "",
             ]
+            if multi_line:
+                lines += [*code_block(a.test_command), ""]
             lines += [f"- ℹ️ {n}" for n in p.agent_notes]
             if p.agent_notes:
                 lines.append("")
