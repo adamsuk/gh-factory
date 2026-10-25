@@ -14,7 +14,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   code-owner review in the `factory-main` ruleset. Together they make changes to agent
   instructions, tests, CI or lockfiles wait for a person while other PRs don't
   (adamsuk/software-factory#6, #25). Both are validated, and `plan` notes code-owner review in the
-  ruleset summary. Nothing changes for repos that don't set them.
+  ruleset summary. `plan` warns when `require_code_owner_review` is on without
+  `codeowner_paths`, since every PR would then wait for a code owner. Nothing changes for repos
+  that don't set them.
+
+## 2026-10-25 (agents may merge here)
+
+### Changed
+
+- `.github/factory.yml` turns on `agents: { merge: true }`, so the factory agents may merge their own
+  gh-factory PRs once every required check listed in that file is green. Roles stay the default
+  (builder, reviewer) and the issue label stays `factory`.
 
 ## 2026-10-25 (issue template placeholder)
 

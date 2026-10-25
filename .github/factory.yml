@@ -15,3 +15,9 @@ required_checks:
   - changelog
   - Analyze (actions)
   - Analyze (python)
+
+# Factory agents (see README.md, "Agents"). Scott approved agent merges here on 2026-10-25.
+# Agents still merge only when the required checks above are green. Roles stay the default
+# (builder, reviewer) and the issue label stays `factory`.
+agents:
+  merge: true
