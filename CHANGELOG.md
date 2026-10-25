@@ -12,16 +12,16 @@ that PR tags and publishes the release.
 
 ## [0.5.0] - 2026-10-25
 
-##### 2026-10-25 (multi-line test command)
+### 2026-10-25 (multi-line test command)
 
-###### Fixed
+#### Fixed
 
 - A multi-line `agents.test_command` now shows in the plan as a fenced code block under the Agents
   line, so its line breaks are kept instead of rendering as one space-joined command.
 
-##### 2026-10-25 (agents review bot and test command)
+### 2026-10-25 (agents review bot and test command)
 
-###### Added
+#### Added
 
 - `agents.review_bot` (`coderabbit` or `none`, default `none`) and `agents.test_command` (an
   optional string) in `.github/factory.yml`. Both are validated, shown on the plan's Agents line
