@@ -114,3 +114,13 @@ def test_issue_template_acceptance_criteria_is_a_placeholder_not_prefilled(cfg, 
     assert "value" not in acceptance["attributes"]
     assert acceptance["attributes"]["placeholder"].strip().startswith("- [ ]")
     assert acceptance["validations"]["required"] is True
+
+
+def test_coderabbit_config_uses_known_keys(cfg, baseline):
+    data = yaml.safe_load(render_template(baseline, cfg, ".coderabbit.yaml", "app"))
+    # Keys checked against https://coderabbit.ai/integrations/schema.v2.json (2026-10-25).
+    assert set(data) <= {"language", "inheritance", "reviews", "chat", "knowledge_base", "tone_instructions"}
+    assert data["inheritance"] is True  # org and app settings fill anything not set here
+    assert data["reviews"]["profile"] in {"quiet", "chill", "assertive"}
+    assert data["reviews"]["auto_review"]["enabled"] is True
+    assert "claims" in data["reviews"]["path_instructions"][0]["instructions"]

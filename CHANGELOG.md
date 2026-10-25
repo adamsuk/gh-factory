@@ -10,6 +10,16 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+### 2026-10-25 (CodeRabbit config)
+
+#### Added
+
+- `.coderabbit.yaml` as a baseline file (skip key `coderabbit`). It sets the `chill` profile,
+  en-GB, no draft reviews, and a review instruction to treat the PR description as a claim and to
+  flag changes to tests, CI, lockfiles and agent instructions. `inheritance: true` keeps org or app
+  settings for everything else, and a hand-made file without the marker is left alone
+  (adamsuk/software-factory#26).
+
 ## [0.3.0] - 2026-10-25
 
 ### 2026-10-25 (code-owner review)

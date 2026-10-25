@@ -61,6 +61,7 @@ def test_compliant_repo_is_a_no_op(cfg, baseline):
         ".github/CODEOWNERS": render_codeowners(cfg, ["@adamsuk"]),
         ".github/workflows/changelog.yml": render_template(baseline, cfg, ".github/workflows/changelog.yml", "app"),
         "CHANGELOG.md": "# Changelog\n\nOur own history, never overwritten.\n",
+        ".coderabbit.yaml": render_template(baseline, cfg, ".coderabbit.yaml", "app"),
     }
     settings = {
         **baseline.settings,
@@ -240,3 +241,19 @@ def test_code_owner_review_with_paths_does_not_warn(cfg, baseline):
     override = "codeowner_paths: ['/AGENTS.md']\nrequire_code_owner_review: true\n"
     plan = plan_repo(FakeClient(repo_routes(files={".github/factory.yml": override})), cfg, baseline, FULL)
     assert not [c for c in plan.changes if c.action == "warning"]
+
+
+def test_coderabbit_config_is_created_and_can_be_skipped(cfg, baseline):
+    plan = plan_repo(FakeClient(repo_routes()), cfg, baseline, FULL)
+    assert ("coderabbit", "create", ".coderabbit.yaml") in actions(plan)
+    assert plan.files[".coderabbit.yaml"].startswith(f"# {cfg.marker}")
+
+    plan = plan_repo(FakeClient(repo_routes(files={".github/factory.yml": "skip: [coderabbit]\n"})), cfg, baseline, FULL)
+    assert ("coderabbit", "skipped", ".coderabbit.yaml") in actions(plan)
+    assert ".coderabbit.yaml" not in plan.files
+
+
+def test_hand_made_coderabbit_config_is_left_alone(cfg, baseline):
+    plan = plan_repo(FakeClient(repo_routes(files={".coderabbit.yaml": "reviews:\n  profile: assertive\n"})), cfg, baseline, FULL)
+    assert ("coderabbit", "drift", ".coderabbit.yaml") in actions(plan)
+    assert ".coderabbit.yaml" not in plan.files
