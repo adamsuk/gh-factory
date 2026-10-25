@@ -7,6 +7,6 @@ Closes #
 
 ## Checklist
 
-- [ ] CHANGELOG.md updated (or the `skip-changelog` label applied)
+- [ ] CHANGELOG.md updated, if this repo keeps one (or the `skip-changelog` label applied)
 - [ ] Tests added or updated
 - [ ] Docs updated where needed

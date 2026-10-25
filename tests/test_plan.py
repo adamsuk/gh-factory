@@ -40,7 +40,8 @@ def test_fresh_repo_plans_everything_and_writes_nothing(cfg, baseline):
 
     settings = next(c for c in plan.changes if c.item == "settings").payload
     assert settings["allow_merge_commit"] is False and settings["allow_rebase_merge"] is False
-    assert settings["delete_branch_on_merge"] is True and settings["allow_auto_merge"] is True
+    assert settings["delete_branch_on_merge"] is True
+    assert "allow_auto_merge" not in settings  # no required checks, and it is already off
     assert "allow_squash_merge" not in settings  # already true
 
 
@@ -63,6 +64,7 @@ def test_compliant_repo_is_a_no_op(cfg, baseline):
     }
     settings = {
         **baseline.settings,
+        "allow_auto_merge": False,  # no required checks configured
         "security_and_analysis": {"secret_scanning": {"status": "enabled"}, "secret_scanning_push_protection": {"status": "enabled"}},
     }
     routes = repo_routes(settings=settings, labels=labels, rulesets=[ruleset], files=files, paths=("README.md",))
@@ -176,3 +178,28 @@ def test_without_admin_rights_admin_only_items_are_unknown(cfg, baseline):
     assert {("settings", "unknown"), ("secret-scanning", "unknown"), ("vulnerability-alerts", "unknown")} <= got
     assert not any(p.endswith("vulnerability-alerts") for _, p, _ in client.calls)
     assert ("ruleset", "create") in got and not plan.errors
+
+
+def _settings_change(plan):
+    return next((c for c in plan.changes if c.item == "settings"), None)
+
+
+def test_auto_merge_stays_off_without_required_checks(cfg, baseline):
+    plan = plan_repo(FakeClient(repo_routes()), cfg, baseline, FULL)
+    change = _settings_change(plan)
+    assert "allow_auto_merge" not in change.payload  # fixture has it off already
+
+
+def test_auto_merge_is_turned_off_without_required_checks(cfg, baseline):
+    plan = plan_repo(FakeClient(repo_routes(settings={"allow_auto_merge": True})), cfg, baseline, FULL)
+    change = _settings_change(plan)
+    assert change.payload["allow_auto_merge"] is False
+    assert "no required checks" in change.detail
+
+
+def test_auto_merge_is_enabled_with_a_required_check(cfg, baseline):
+    files = {".github/factory.yml": "required_checks: [test]\n"}
+    plan = plan_repo(FakeClient(repo_routes(files=files)), cfg, baseline, FULL)
+    change = _settings_change(plan)
+    assert change.payload["allow_auto_merge"] is True
+    assert "no required checks" not in change.detail

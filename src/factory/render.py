@@ -107,7 +107,7 @@ def _cron(full_name: str) -> str:
     return f"{h % 60} {(h // 60) % 24} * * {(h // 1440) % 7}"
 
 
-def render_codeql(cfg: FactoryConfig, full_name: str, default_branch: str, languages: list[str]) -> str:
+def render_codeql(cfg: FactoryConfig, baseline: Baseline, full_name: str, default_branch: str, languages: list[str]) -> str:
     include = "\n".join(
         f"          - language: {lang}\n            build-mode: {'autobuild' if lang in AUTOBUILD else 'none'}" for lang in languages
     )
@@ -140,12 +140,12 @@ jobs:
         include:
 {include}
     steps:
-      - uses: actions/checkout@v7
-      - uses: github/codeql-action/init@v4
+      - uses: {baseline.pin("actions/checkout")}
+      - uses: {baseline.pin("github/codeql-action/init")}
         with:
           languages: ${{{{ matrix.language }}}}
           build-mode: ${{{{ matrix.build-mode }}}}
-      - uses: github/codeql-action/analyze@v4
+      - uses: {baseline.pin("github/codeql-action/analyze")}
         with:
           category: "/language:${{{{ matrix.language }}}}"
 """
@@ -166,6 +166,8 @@ def render_template(baseline: Baseline, cfg: FactoryConfig, rel: str, repo_name:
     for k, v in {
         "workflows_repo": cfg.workflows_repo,
         "workflows_ref": cfg.workflows_ref,
+        "workflows_pin": cfg.workflows_ref
+        + (f" # {cfg.workflows_ref_comment}" if cfg.workflows_ref_comment and cfg.workflows_ref_comment != cfg.workflows_ref else ""),
         "repo": repo_name,
         "marker": cfg.marker,
     }.items():

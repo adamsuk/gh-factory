@@ -20,11 +20,14 @@ Requirements: [`gh`](https://cli.github.com) logged in (`gh auth login`), and
 `python3` 3.10 or newer. Nothing else: the one dependency (PyYAML) is vendored.
 
 ```sh
-gh extension install adamsuk/gh-factory
+gh extension install adamsuk/gh-factory --pin v0.1.0   # a fixed release (recommended)
+gh extension install adamsuk/gh-factory                # or track main
 gh factory --help
 ```
 
-Upgrade with `gh extension upgrade factory`.
+Unpinned installs upgrade with `gh extension upgrade factory`. To move a pinned install
+to a newer release, reinstall it with the new `--pin` tag. Releases are listed
+[here](https://github.com/adamsuk/gh-factory/releases).
 
 ## Quickstart
 
@@ -55,12 +58,12 @@ confirmation declined.
 
 | Item | Key (for opt-outs) | How |
 | --- | --- | --- |
-| Squash merge only, PR title/body as the commit, auto-merge allowed, branches deleted after merge | `settings` | API, in place |
+| Squash merge only, PR title/body as the commit, branches deleted after merge. Auto-merge is allowed only when the repo has at least one required check; with none, a PR set to auto-merge would merge instantly, so it is kept (or turned) off | `settings` | API, in place |
 | Secret scanning and push protection, where GitHub offers it | `secret-scanning` | API, in place |
 | Dependabot vulnerability alerts | `vulnerability-alerts` | API, in place |
 | Ruleset `factory-main` on the default branch: PR required (0 approvals by default), required checks from config (none by default), no force-push, no deletion | `ruleset` | API; updated in place, other rulesets never touched |
 | Labels `skip-changelog`, `cutting edge`, `dependencies`, `github_actions`, `factory`, `bug`, `enhancement`, `documentation` | `labels` | API; created or updated, others never deleted |
-| `.github/pull_request_template.md` with a "CHANGELOG.md updated" checkbox | `pr-template` | one PR |
+| `.github/pull_request_template.md` with a "CHANGELOG.md updated, if this repo keeps one" checkbox (reads correctly as an org-wide default template too) | `pr-template` | one PR |
 | `.github/ISSUE_TEMPLATE/task.yml` issue form with acceptance criteria | `issue-template` | one PR |
 | `.github/CODEOWNERS` (`*` and `/.github/` owned by `@you` by default) | `codeowners` | one PR |
 | `.github/dependabot.yml` for the ecosystems found in the repo | `dependabot` | one PR |
@@ -107,7 +110,8 @@ baseline: ./my-baseline         # custom baseline; relative to this file
 sync_branch: factory/sync
 marker: factory-managed
 workflows_repo: adamsuk/gh-factory   # where delivered workflows find the reusable check
-workflows_ref: main
+workflows_ref: <commit sha>         # pinned commit of the reusable workflows
+workflows_ref_comment: main         # written after the pin as `# main`
 ```
 
 See [`examples/config.yml`](examples/config.yml).
@@ -144,6 +148,7 @@ my-baseline/
   settings.yml        # repository settings and security toggles
   ruleset.yml         # the default-branch ruleset
   labels.yml          # standard labels
+  actions.yml         # commit SHAs that delivered workflows pin actions to
   files/              # templates, at the path they are delivered to
     .github/pull_request_template.md
     .github/ISSUE_TEMPLATE/task.yml
@@ -151,9 +156,12 @@ my-baseline/
     CHANGELOG.md
 ```
 
+`actions.yml` lists the commit SHA (and version, written as a `# vX.Y.Z` comment)
+that every delivered workflow pins each action to.
+
 Anything missing falls back to the built-in baseline, so you can override just
 `labels.yml` or a single template. Templates may use `{{marker}}`,
-`{{workflows_repo}}`, `{{workflows_ref}}` and `{{repo}}`. CODEOWNERS,
+`{{workflows_repo}}`, `{{workflows_ref}}`, `{{workflows_pin}}` (ref plus comment) and `{{repo}}`. CODEOWNERS,
 Dependabot and CodeQL are generated from what's in each repo.
 
 ## Permissions and gh scopes
@@ -195,6 +203,17 @@ repos, and it can't read admin-only items, which show as **unknown**. It
 reports in the job summary and never fails on drift. Set the `FACTORY_OWNERS`
 repository variable (space-separated) to choose the owners.
 
+## Pinned actions
+
+Every `uses:` in delivered workflows is pinned to a full commit SHA with a
+`# vX.Y.Z` comment, taken from [`baseline/actions.yml`](baseline/actions.yml).
+The reusable changelog workflow is pinned the same way, through `workflows_ref`.
+Every delivered `dependabot.yml` covers `github-actions`, so Dependabot proposes
+bumps. Delivered workflows are factory-managed, though, so to make a bump stick
+everywhere, update `baseline/actions.yml` and re-apply. A test fails if
+gh-factory's own workflows and `baseline/actions.yml` disagree, so a Dependabot
+bump here can't silently diverge from the baseline.
+
 ## Reusable changelog check
 
 [`.github/workflows/changelog.yml`](.github/workflows/changelog.yml) fails a PR
@@ -210,7 +229,7 @@ permissions:
   pull-requests: read
 jobs:
   changelog:
-    uses: adamsuk/gh-factory/.github/workflows/changelog.yml@main
+    uses: adamsuk/gh-factory/.github/workflows/changelog.yml@<commit-sha> # v0.1.0
     # with: { changelog_file: CHANGELOG.md, skip_label: skip-changelog, skip_authors: "dependabot[bot]" }
 ```
 

@@ -5,6 +5,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## 2026-10-25 (v0.1.0)
+
+### Changed
+
+- Auto-merge is only enabled when a repo's effective config has at least one required check.
+  With no checks and no approvals, a PR set to auto-merge would merge instantly. Such repos keep
+  auto-merge off, or have it turned off, and the plan says why.
+- Every action in delivered workflows is pinned to a full commit SHA with a `# vX.Y.Z` comment,
+  from the new `baseline/actions.yml`: checkout v7.0.1, codeql-action v4.39.1. The reusable changelog
+  workflow is pinned via `workflows_ref` (default `283fa17… # main`, new `workflows_ref_comment`).
+  These match touchlineHQ/.github#2. gh-factory's own workflows are pinned too, including actionlint
+  1.7.12, and a test keeps them in step with the baseline.
+- The PR template's changelog line now reads "CHANGELOG.md updated, if this repo keeps one (or the
+  `skip-changelog` label applied)". Conditional wording was chosen over conditional rendering because
+  touchlineHQ/.github's template is the org-wide default for repos with and without a changelog,
+  and a single file can't know which repo it is shown in.
+- gh-factory's `.github/factory.yml` now lists its real CI checks as `required_checks`, so its own
+  `factory-main` ruleset gates merges and auto-merge is on.
+
+### Added
+
+- README: pin a release with `gh extension install adamsuk/gh-factory --pin v0.1.0`; a section on pinned actions.
+- The `gh-extension` topic, and release v0.1.0.
+
 ## 2026-10-25
 
 ### Changed

@@ -104,13 +104,27 @@ def _feature_on(repo: dict, *keys: str) -> bool:
 # ---------------------------------------------------------------- settings
 
 
-def plan_settings(plan: RepoPlan, repo: dict, baseline: Baseline) -> None:
+NO_CHECKS_AUTO_MERGE = "auto-merge stays off: no required checks, so an auto-merge PR would merge instantly"
+
+
+def desired_settings(baseline: Baseline, checks: list[str]) -> dict:
+    """Baseline settings, with auto-merge only allowed when at least one required check gates merges."""
+    want = dict(baseline.settings)
+    if want.get("allow_auto_merge") and not checks:
+        want["allow_auto_merge"] = False
+    return want
+
+
+def plan_settings(plan: RepoPlan, repo: dict, baseline: Baseline, checks: list[str]) -> None:
     if not is_admin(repo):
         plan.add("settings", "unknown", "repository settings", NEEDS_ADMIN)
         return
-    diff = {k: v for k, v in baseline.settings.items() if repo.get(k) != v}
+    want = desired_settings(baseline, checks)
+    diff = {k: v for k, v in want.items() if repo.get(k) != v}
     if diff:
         detail = ", ".join(f"{k}: {json.dumps(repo.get(k))} → {json.dumps(v)}" for k, v in diff.items())
+        if "allow_auto_merge" in diff and diff["allow_auto_merge"] is False and baseline.settings.get("allow_auto_merge"):
+            detail += f" ({NO_CHECKS_AUTO_MERGE})"
         plan.add("settings", "update", "repository settings", detail, diff)
 
 
@@ -295,7 +309,7 @@ def desired_files(
             if not langs:
                 plan.add(item, "skipped", path, "no CodeQL-supported languages found")
                 continue
-            content = render.render_codeql(cfg, plan.full_name, plan.default_branch, langs)
+            content = render.render_codeql(cfg, baseline, plan.full_name, plan.default_branch, langs)
         else:
             content = render.render_template(baseline, cfg, path, plan.name)
         out[path] = (item, content, item != "changelog-stub")
@@ -375,7 +389,7 @@ def plan_repo(client: Client, cfg: FactoryConfig, baseline: Baseline, full_name:
     checks = ov.required_checks if ov.required_checks is not None else cfg.required_checks
 
     steps = [
-        ("settings", lambda: plan_settings(plan, repo, baseline)),
+        ("settings", lambda: plan_settings(plan, repo, baseline, checks)),
         ("secret-scanning", lambda: plan_secret_scanning(plan, repo, baseline)),
         ("vulnerability-alerts", lambda: plan_vulnerability_alerts(plan, client, repo, baseline)),
         ("ruleset", lambda: plan_ruleset(plan, client, baseline, approvals, checks)),
