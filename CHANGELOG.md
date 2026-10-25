@@ -10,9 +10,11 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
-## 2026-10-25 (automatic releases)
+## [0.2.0] - 2026-10-25
 
-### Added
+### 2026-10-25 (automatic releases)
+
+#### Added
 
 - Automatic semver releases. `.github/workflows/release.yml` is a reusable workflow that reads the
   Conventional Commit titles since the last tag (`feat` is minor; `fix` and `perf` are patch; `!` or
@@ -27,32 +29,32 @@ that PR tags and publishes the release.
   `PR title` check.
 - Tests for the release logic, including an end-to-end run against a local git remote.
 
-### Changed
+#### Changed
 
 - `CHANGELOG.md` groups released entries under version headings: everything up to the first
   release is now under `## [0.1.0] - 2026-10-25`, with its headings one level down.
 - README: pin a release with `--pin vX.Y.Z` from the Releases page, and a "Releases" section.
 
-## 2026-10-25 (agents may merge here)
+### 2026-10-25 (agents may merge here)
 
-### Changed
+#### Changed
 
 - `.github/factory.yml` turns on `agents: { merge: true }`, so the factory agents may merge their own
   gh-factory PRs once every required check listed in that file is green. Roles stay the default
   (builder, reviewer) and the issue label stays `factory`.
 
-## 2026-10-25 (issue template placeholder)
+### 2026-10-25 (issue template placeholder)
 
-### Fixed
+#### Fixed
 
 - The baseline issue form's "Acceptance criteria" box uses a `placeholder` instead of a prefilled
   `value`. A prefilled `- [ ] ` counted as an answer, so `required: true` never stopped an empty
   checklist. This matches touchlineHQ/.github#2, so the next apply no longer reverts that fix.
   gh-factory's own copy is updated too.
 
-## 2026-10-25 (agents section)
+### 2026-10-25 (agents section)
 
-### Added
+#### Added
 
 - An optional `agents:` section in a repo's `.github/factory.yml`, for the factory's coding and
   review agents: `merge` (default `false`), `roles` (any of `intake`, `research`, `builder`,
@@ -63,7 +65,7 @@ that PR tags and publishes the release.
   label is not a baseline label. gh-factory never acts on these settings; the agents read them.
 - README: an "Agents" section with examples.
 
-### Changed
+#### Changed
 
 - The baseline `factory` label's description now reads "Opened by gh-factory, or an issue queued
   for the factory agents", because agents pick up issues with that label. The next apply updates
