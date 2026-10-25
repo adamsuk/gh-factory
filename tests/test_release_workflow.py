@@ -1,0 +1,172 @@
+"""Tests for the Python embedded in .github/workflows/release.yml."""
+
+import os
+import subprocess
+import textwrap
+
+import pytest
+
+from factory._vendor import yaml
+
+from .conftest import ROOT
+
+WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
+
+
+def _script():
+    wf = yaml.safe_load(WORKFLOW.read_text())
+    step = next(s for s in wf["jobs"]["release"]["steps"] if "python3 - <<'PY'" in s.get("run", ""))
+    body = step["run"].split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    return textwrap.dedent(body)
+
+
+@pytest.fixture(scope="module")
+def rel():
+    ns = {"__name__": "release_under_test"}
+    exec(compile(_script(), str(WORKFLOW), "exec"), ns)
+    return ns
+
+
+@pytest.mark.parametrize(
+    ("subject", "body", "level"),
+    [
+        ("feat: agents section (#8)", "", "minor"),
+        ("feat(plan): x", "", "minor"),
+        ("fix: placeholder (#10)", "", "patch"),
+        ("perf: faster", "", "patch"),
+        ("feat!: rework", "", "major"),
+        ("fix(cli)!: rename flag", "", "major"),
+        ("refactor: x", "BREAKING CHANGE: flag removed", "major"),
+        ("chore: sync factory baseline (#5)", "", None),
+        ("docs: readme", "", None),
+        ("ci: pin", "", None),
+        ("test: more", "", None),
+        ("chore(release): v0.2.0 (#12)", "", None),
+        ("Merge branch main", "", None),
+        ("feat:missing space", "", None),
+    ],
+)
+def test_classify(rel, subject, body, level):
+    assert rel["classify"](subject, body) == level
+
+
+def test_bump(rel):
+    assert rel["bump"]("0.1.0", "minor") == "0.2.0"
+    assert rel["bump"]("0.2.3", "patch") == "0.2.4"
+    assert rel["bump"]("0.2.3", "major") == "1.0.0"
+
+
+CHANGELOG = """# Changelog
+
+## [Unreleased]
+
+## 2026-10-25 (agents section)
+
+### Added
+
+- An `agents:` section.
+
+```yaml
+# not a heading
+agents: {}
+```
+
+## [0.1.0] - 2026-10-25
+
+### 2026-10-25 (v0.1.0)
+
+- Old.
+"""
+
+
+def test_cut_release_moves_unreleased_entries(rel):
+    text, notes = rel["cut_release"](CHANGELOG, "0.2.0", "2026-10-26")
+    assert "## [Unreleased]\n\n## [0.2.0] - 2026-10-26\n\n### 2026-10-25 (agents section)\n\n#### Added" in text
+    assert "# not a heading" in text and "## # not a heading" not in text
+    assert text.index("## [0.2.0]") < text.index("## [0.1.0]")
+    assert notes.startswith("### 2026-10-25 (agents section)")
+    assert rel["section"](text, "0.2.0") == notes
+    assert rel["section"](text, "0.1.0") == "### 2026-10-25 (v0.1.0)\n\n- Old."
+    assert rel["section"](text, "9.9.9") is None
+
+
+def test_cut_release_needs_unreleased_heading(rel):
+    with pytest.raises(SystemExit):
+        rel["cut_release"]("# Changelog\n", "0.2.0", "2026-10-26")
+
+
+def test_bump_files(rel, tmp_path):
+    p = tmp_path / "pyproject.toml"
+    p.write_text('[project]\nversion = "0.1.0"\ntarget-version = "py310"\ndeps = ["x==0.1.0"]\n')
+    i = tmp_path / "__init__.py"
+    i.write_text('__version__ = "0.1.0"\n')
+    rel["bump_files"]([str(p), str(i)], "0.1.0", "0.2.0")
+    assert p.read_text() == '[project]\nversion = "0.2.0"\ntarget-version = "py310"\ndeps = ["x==0.1.0"]\n'
+    assert i.read_text() == '__version__ = "0.2.0"\n'
+    with pytest.raises(SystemExit):
+        rel["bump_files"]([str(i)], "0.1.0", "0.3.0")
+
+
+def _git(cwd, *args):
+    return subprocess.run(["git", *args], cwd=cwd, check=True, text=True, capture_output=True).stdout.strip()
+
+
+def test_end_to_end_release_pr_then_release(rel, tmp_path, monkeypatch):
+    remote, work, calls = tmp_path / "remote.git", tmp_path / "work", tmp_path / "gh-calls"
+    _git(tmp_path, "init", "-q", "--bare", str(remote))
+    _git(tmp_path, "init", "-q", "-b", "main", str(work))
+    for k, v in {"user.name": "t", "user.email": "t@example.com"}.items():
+        _git(work, "config", k, v)
+    _git(work, "remote", "add", "origin", str(remote))
+    (work / "CHANGELOG.md").write_text("# Changelog\n\n## [Unreleased]\n\n## [0.1.0] - 2026-10-25\n\n- Old.\n")
+    (work / "__init__.py").write_text('__version__ = "0.1.0"\n')
+    _git(work, "add", "-A")
+    _git(work, "commit", "-qm", "feat: first")
+    _git(work, "tag", "v0.1.0")
+    (work / "CHANGELOG.md").write_text(
+        "# Changelog\n\n## [Unreleased]\n\n## 2026-10-26 (thing)\n\n### Fixed\n\n- A fix.\n\n## [0.1.0] - 2026-10-25\n\n- Old.\n"
+    )
+    _git(work, "commit", "-qam", "fix: a fix (#2)")
+    _git(work, "commit", "-q", "--allow-empty", "-m", "chore: tidy (#3)")
+
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    gh = bindir / "gh"
+    gh.write_text(f'#!/bin/sh\nprintf "%s\\n" "$*" >> {calls}\n')
+    gh.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.chdir(work)
+    for k, v in {
+        "CHANGELOG_FILE": "CHANGELOG.md",
+        "VERSION_FILES": "__init__.py",
+        "TAG_PREFIX": "v",
+        "RELEASE_BRANCH": "release/next",
+        "INITIAL_VERSION": "0.0.0",
+        "BASE_BRANCH": "main",
+    }.items():
+        monkeypatch.setenv(k, v)
+
+    rel["main"]()
+    log = calls.read_text()
+    assert "pr create --head release/next --base main --title chore(release): v0.1.1" in log
+    assert _git(remote, "log", "-1", "--format=%s", "release/next") == "chore(release): v0.1.1"
+    released = _git(remote, "show", "release/next:CHANGELOG.md")
+    assert "## [Unreleased]\n\n## [0.1.1] - " in released and "### 2026-10-26 (thing)\n\n#### Fixed" in released
+    assert _git(remote, "show", "release/next:__init__.py") == '__version__ = "0.1.1"'
+
+    # Squash-merge the release PR onto main, then the workflow runs again and releases.
+    _git(work, "checkout", "-q", "main")
+    _git(work, "merge", "-q", "--squash", "release/next")
+    _git(work, "commit", "-qm", "chore(release): v0.1.1 (#4)")
+    calls.write_text("")
+    rel["main"]()
+    log = calls.read_text()
+    assert log.startswith("release create v0.1.1 --target ")
+    assert "--title v0.1.1 --notes-file" in log
+
+    # Nothing releasable since the tag: no PR, no release.
+    _git(work, "tag", "v0.1.1")
+    _git(work, "commit", "-q", "--allow-empty", "-m", "docs: words (#5)")
+    calls.write_text("")
+    rel["main"]()
+    assert calls.read_text() == ""

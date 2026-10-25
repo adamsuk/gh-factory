@@ -15,6 +15,7 @@ required_checks:
   - changelog
   - Analyze (actions)
   - Analyze (python)
+  - PR title
 
 # Factory agents (see README.md, "Agents"). Scott approved agent merges here on 2026-10-25.
 # Agents still merge only when the required checks above are green. Roles stay the default
