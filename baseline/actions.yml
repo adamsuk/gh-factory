@@ -1,0 +1,9 @@
+# Commit SHAs that delivered workflows pin each action to. The version is written as a
+# trailing comment (`# v7.0.1`) so Dependabot can recognise and bump the pin.
+# To bump: update here (tests check gh-factory's own workflows use the same pins), then apply.
+actions/checkout:
+  sha: 3d3c42e5aac5ba805825da76410c181273ba90b1
+  version: v7.0.1
+github/codeql-action:
+  sha: 9b3254085494b55a0f7c4c2b3d2d52cc712ce370
+  version: v4.39.1

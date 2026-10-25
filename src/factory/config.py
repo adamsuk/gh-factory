@@ -56,7 +56,9 @@ class FactoryConfig:
     marker: str = "factory-managed"
     # Where delivered files point for reusable workflows. Change it if you fork.
     workflows_repo: str = "adamsuk/gh-factory"
-    workflows_ref: str = "main"
+    # Pinned commit of the reusable workflows, with a trailing comment naming what it tracks.
+    workflows_ref: str = "283fa179145dab3b40dbb4b2100fcb50910d7eb1"
+    workflows_ref_comment: str = "main"
     baseline: Path | None = None
     source: str = "built-in defaults"
 
@@ -68,6 +70,15 @@ class Baseline:
     ruleset: dict[str, Any]
     labels: list[dict[str, str]]
     dirs: list[Path]  # custom first, then built-in
+    actions: dict[str, dict[str, str]] = field(default_factory=dict)
+
+    def pin(self, action: str) -> str:
+        """`owner/repo[/path]` -> `owner/repo[/path]@<sha> # <version>`. Raises KeyError if not pinned."""
+        repo = "/".join(action.split("/")[:2])
+        p = self.actions.get(repo)
+        if not p:
+            raise KeyError(f"no pin for {repo} in baseline actions.yml")
+        return f"{action}@{p['sha']} # {p['version']}"
 
     @property
     def files_dir(self) -> Path:
@@ -133,7 +144,7 @@ def parse_config(text: str, where: str, base_dir: Path) -> FactoryConfig:
         if not isinstance(a, int) or isinstance(a, bool) or not 0 <= a <= 10:
             raise ConfigError(f"{where}: `approvals` must be an integer 0-10")
         cfg.approvals = a
-    for k in ("topic", "sync_branch", "marker", "workflows_repo", "workflows_ref"):
+    for k in ("topic", "sync_branch", "marker", "workflows_repo", "workflows_ref", "workflows_ref_comment"):
         if k in raw:
             if not isinstance(raw[k], str) or not raw[k].strip():
                 raise ConfigError(f"{where}: `{k}` must be a non-empty string")
@@ -198,6 +209,7 @@ def load_baseline(custom: str | Path | None = None) -> Baseline:
         ruleset=first("ruleset.yml") or {},
         labels=first("labels.yml") or [],
         dirs=dirs,
+        actions=first("actions.yml") or {},
     )
 
 

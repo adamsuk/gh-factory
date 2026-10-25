@@ -3,6 +3,8 @@ repository:
   allow_squash_merge: true
   allow_merge_commit: false
   allow_rebase_merge: false
+  # Only turned on when the repo has at least one required status check (factory.yml or the
+  # repo's .github/factory.yml). With no checks and no approvals, auto-merge would merge instantly.
   allow_auto_merge: true
   delete_branch_on_merge: true
   squash_merge_commit_title: PR_TITLE

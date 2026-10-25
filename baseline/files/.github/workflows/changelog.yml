@@ -12,4 +12,4 @@ permissions:
 
 jobs:
   changelog:
-    uses: {{workflows_repo}}/.github/workflows/changelog.yml@{{workflows_ref}}
+    uses: {{workflows_repo}}/.github/workflows/changelog.yml@{{workflows_pin}}
