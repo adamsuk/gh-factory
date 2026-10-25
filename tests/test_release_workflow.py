@@ -205,6 +205,12 @@ def test_relevel_handles_mixed_depths_nesting_fences_and_undated_headings(rel):
             "## 2026-01-01 not a heading",
             "```",
             "",
+            "~~~",
+            "```",
+            "# still fenced",
+            "~~~ not a close",
+            "~~~",
+            "",
             "#### 2026-10-24 (too deep)",
             "",
             "##### Fixed",
@@ -224,6 +230,7 @@ def test_relevel_handles_mixed_depths_nesting_fences_and_undated_headings(rel):
         "#### Added",
         "##### Sub-point",
         "## 2026-01-01 not a heading",
+        "# still fenced",
         "### 2026-10-24 (too deep)",
         "#### Fixed",
         "#### Changed",
@@ -232,16 +239,31 @@ def test_relevel_handles_mixed_depths_nesting_fences_and_undated_headings(rel):
 
 
 def test_changelog_release_sections_use_house_levels():
-    """Every dated entry under a released version is `###`, with its subsections at `####`."""
+    """Every dated entry under a released version is `###`, and its shallowest subsection is `####`."""
     import re
 
     text = (ROOT / "CHANGELOG.md").read_text()
     unreleased = re.search(r"^## \[Unreleased\]", text, re.M).end()
     released = text[unreleased:]
     released = released[re.search(r"^## \[", released, re.M).start() :]
+    fence, entries = "", []  # entries: [dated heading line, [subsection levels]]
     for line in released.splitlines():
-        m = re.match(r"^(#+) +(.*)$", line)
+        f = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
+        if f and not fence:
+            fence = f.group(1)
+            continue
+        if f and fence and f.group(1)[0] == fence[0] and len(f.group(1)) >= len(fence) and not f.group(2).strip():
+            fence = ""
+            continue
+        m = None if fence else re.match(r"^(#+) +(.*)$", line)
         if not m or m.group(1) == "##":
             continue
-        dated = bool(re.match(r"\d{4}-\d{2}-\d{2}\b", m.group(2)))
-        assert len(m.group(1)) == (3 if dated else 4), line
+        if re.match(r"\d{4}-\d{2}-\d{2}\b", m.group(2)):
+            assert len(m.group(1)) == 3, line
+            entries.append([line, []])
+        else:
+            assert entries and len(m.group(1)) >= 4, line
+            entries[-1][1].append(len(m.group(1)))
+    assert entries
+    for head, subs in entries:
+        assert not subs or min(subs) == 4, head

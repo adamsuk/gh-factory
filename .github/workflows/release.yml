@@ -122,12 +122,16 @@ jobs:
               first dated entry are shifted so the shallowest is `###`. Fenced code is left alone.
               """
               lines = block.splitlines()
-              fenced, heads = False, []  # (index, level, is_dated)
+              fence, heads = "", []  # fence is the open marker; heads are (index, level, is_dated)
               for i, line in enumerate(lines):
-                  if line.lstrip().startswith(("```", "~~~")):
-                      fenced = not fenced
+                  f = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
+                  if f and not fence and not (f.group(1)[0] == "`" and "`" in f.group(2)):
+                      fence = f.group(1)
                       continue
-                  h = None if fenced else re.match(r"^(#{1,6}) +(.*)$", line)
+                  if f and fence and f.group(1)[0] == fence[0] and len(f.group(1)) >= len(fence) and not f.group(2).strip():
+                      fence = ""
+                      continue
+                  h = None if fence else re.match(r"^(#{1,6}) +(.*)$", line)
                   if h:
                       heads.append((i, len(h.group(1)), bool(re.match(r"\d{4}-\d{2}-\d{2}\b", h.group(2)))))
               groups, current = [], []  # runs of headings, each starting at a dated heading
