@@ -1,4 +1,4 @@
-# Same CodeQL workflow the factory delivers to enrolled repos.
+# factory-managed: maintained by https://github.com/adamsuk/gh-factory. Remove this line to take ownership.
 name: CodeQL
 
 on:
@@ -7,7 +7,7 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: "53 20 * * 3"
+    - cron: "24 12 * * 5"
 
 permissions:
   contents: read

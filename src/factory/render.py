@@ -50,6 +50,7 @@ CODEQL_EXT = {
     ".swift": "swift",
 }
 AUTOBUILD = {"go", "c-cpp", "swift"}
+PIP_LIKE = {"pip"}
 
 
 def header(cfg: FactoryConfig) -> str:
@@ -90,15 +91,13 @@ def render_dependabot(cfg: FactoryConfig, paths: list[str]) -> str:
     updates = []
     for eco, dirs in detect_ecosystems(paths).items():
         labels = ["dependencies"] + (["github_actions"] if eco == "github-actions" else [])
-        updates.append(
-            {
-                "package-ecosystem": eco,
-                "directories": dirs,
-                "schedule": {"interval": "weekly"},
-                "labels": labels,
-                "groups": {"minor-and-patch": {"update-types": ["minor", "patch"]}},
-            }
-        )
+        entry = {"package-ecosystem": eco, "directories": dirs, "schedule": {"interval": "weekly"}}
+        if eco in PIP_LIKE:
+            # Keep deliberate lower bounds (e.g. in pyproject.toml); exact pins still get bumped.
+            entry["versioning-strategy"] = "increase-if-necessary"
+        entry["labels"] = labels
+        entry["groups"] = {"minor-and-patch": {"update-types": ["minor", "patch"]}}
+        updates.append(entry)
     body = yamlio.dump({"version": 2, "updates": updates})
     return header(cfg) + body
 
