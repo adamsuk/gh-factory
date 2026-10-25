@@ -24,7 +24,7 @@ FILE_ITEMS = {
     "changelog-stub": "CHANGELOG.md",
 }
 ITEMS = {"settings", "secret-scanning", "vulnerability-alerts", "ruleset", "labels", "files", *FILE_ITEMS}
-OVERRIDE_KEYS = {"skip", "approvals", "required_checks", "codeowners", "agents"}
+OVERRIDE_KEYS = {"skip", "approvals", "required_checks", "codeowners", "codeowner_paths", "require_code_owner_review", "agents"}
 # Roles the factory agents can take in a repo (see README, "Agents").
 AGENT_ROLES = ("intake", "research", "builder", "reviewer")
 DEFAULT_AGENT_ROLES = ("builder", "reviewer")
@@ -118,6 +118,10 @@ class RepoOverrides:
     approvals: int | None = None
     required_checks: list[str] | None = None
     codeowners: list[str] | None = None
+    # Paths owned in CODEOWNERS instead of `*` (`/.github/` is always owned). None keeps `*`.
+    codeowner_paths: list[str] | None = None
+    # Overrides the baseline ruleset's `require_code_owner_review`. None keeps the baseline value.
+    require_code_owner_review: bool | None = None
     agents: AgentSettings = field(default_factory=AgentSettings)
 
     def skips(self, item: str) -> bool:
@@ -262,6 +266,17 @@ def parse_overrides(text: str | None) -> RepoOverrides:
     for key in ("required_checks", "codeowners"):
         if key in raw:
             setattr(ov, key, _str_list(raw, key, OVERRIDE_PATH))
+    if "codeowner_paths" in raw:
+        paths = _str_list(raw, "codeowner_paths", OVERRIDE_PATH)
+        if not paths:
+            raise ConfigError(f"{OVERRIDE_PATH}: `codeowner_paths` must list at least one path")
+        if any(any(c.isspace() for c in p) or p.startswith("#") for p in paths):
+            raise ConfigError(f"{OVERRIDE_PATH}: `codeowner_paths` entries must be single CODEOWNERS patterns")
+        ov.codeowner_paths = paths
+    if "require_code_owner_review" in raw:
+        if not isinstance(raw["require_code_owner_review"], bool):
+            raise ConfigError(f"{OVERRIDE_PATH}: `require_code_owner_review` must be true or false")
+        ov.require_code_owner_review = raw["require_code_owner_review"]
     if "agents" in raw:
         ov.agents = parse_agents(raw["agents"])
     return ov

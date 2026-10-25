@@ -152,13 +152,16 @@ jobs:
     )
 
 
-def render_codeowners(cfg: FactoryConfig, owners: list[str]) -> str:
+def render_codeowners(cfg: FactoryConfig, owners: list[str], paths: list[str] | None = None) -> str:
+    """`paths` replaces the default `*` line, so code-owner review applies only to those paths.
+    `/.github/` is always owned."""
     who = " ".join(owners)
-    return (
-        f"# {cfg.marker}: maintained by https://github.com/{cfg.workflows_repo}. Remove this line to take ownership.\n"
-        f"* {who}\n"
-        f"/.github/ {who}\n"
-    )
+    lines = [f"# {cfg.marker}: maintained by https://github.com/{cfg.workflows_repo}. Remove this line to take ownership."]
+    for p in [*(paths or ["*"]), "/.github/"]:
+        line = f"{p} {who}"
+        if line not in lines:
+            lines.append(line)
+    return "\n".join(lines) + "\n"
 
 
 def render_template(baseline: Baseline, cfg: FactoryConfig, rel: str, repo_name: str) -> str:

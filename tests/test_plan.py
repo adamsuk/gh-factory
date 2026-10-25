@@ -203,3 +203,27 @@ def test_auto_merge_is_enabled_with_a_required_check(cfg, baseline):
     change = _settings_change(plan)
     assert change.payload["allow_auto_merge"] is True
     assert "no required checks" not in change.detail
+
+
+def test_codeowner_paths_and_required_code_owner_review(cfg, baseline):
+    override = "codeowner_paths: ['/AGENTS.md', '/CLAUDE.md', '/.claude/']\nrequire_code_owner_review: true\n"
+    plan = plan_repo(FakeClient(repo_routes(files={".github/factory.yml": override})), cfg, baseline, FULL)
+    owners = plan.files[".github/CODEOWNERS"].splitlines()
+    assert owners[1:] == ["/AGENTS.md @adamsuk", "/CLAUDE.md @adamsuk", "/.claude/ @adamsuk", "/.github/ @adamsuk"]
+    assert not any(line.startswith("* ") for line in owners)
+    change = next(c for c in plan.changes if c.item == "ruleset")
+    rules = {r["type"]: r for r in change.payload["body"]["rules"]}
+    assert rules["pull_request"]["parameters"]["require_code_owner_review"] is True
+    assert "code-owner review" in change.detail
+
+
+def test_code_owner_review_stays_off_by_default(cfg, baseline):
+    plan = plan_repo(FakeClient(repo_routes()), cfg, baseline, FULL)
+    assert plan.files[".github/CODEOWNERS"].splitlines()[1:] == ["* @adamsuk", "/.github/ @adamsuk"]
+    rules = {r["type"]: r for r in desired_ruleset(baseline, 0, [])["rules"]}
+    assert rules["pull_request"]["parameters"]["require_code_owner_review"] is False
+
+
+def test_existing_ruleset_without_code_owner_review_is_updated(cfg, baseline):
+    existing = {"id": 3, **desired_ruleset(baseline, 0, [])}
+    assert ruleset_diff(existing, desired_ruleset(baseline, 0, [], True)) == ["rule pull_request"]

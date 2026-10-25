@@ -132,9 +132,19 @@ required_checks:      # exact check names that already run on this repo's PRs
   - Analyze (javascript-typescript)
 codeowners:
   - "@my-org/maintainers"
+codeowner_paths:      # own these paths instead of `*` (`/.github/` is always owned)
+  - /AGENTS.md
+  - /.claude/
+require_code_owner_review: true   # default: the baseline ruleset's value (false)
 agents:               # what the factory agents may do here; see "Agents" below
   merge: false
 ```
+
+`codeowner_paths` and `require_code_owner_review` go together. With the default
+`*` line every PR touches an owned file, so requiring code-owner review would
+make every PR wait for a code owner, and a code owner can't approve their own
+PR. Listing only the sensitive paths (agent instructions, tests, workflows,
+lockfiles) means only changes to those wait for the code owner.
 
 The factory never makes up check names. Listing a check that never runs blocks
 every PR. An invalid override file stops the factory from touching that repo,

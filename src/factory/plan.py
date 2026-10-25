@@ -171,12 +171,14 @@ def plan_vulnerability_alerts(plan: RepoPlan, client: Client, repo: dict, baseli
 # ---------------------------------------------------------------- ruleset
 
 
-def desired_ruleset(baseline: Baseline, approvals: int, checks: list[str]) -> dict:
+def desired_ruleset(baseline: Baseline, approvals: int, checks: list[str], code_owner_review: bool | None = None) -> dict:
     rs = baseline.ruleset
+    if code_owner_review is None:
+        code_owner_review = bool(rs.get("pull_request", {}).get("require_code_owner_review", False))
     pr = {
         "required_approving_review_count": approvals,
         "dismiss_stale_reviews_on_push": bool(rs.get("pull_request", {}).get("dismiss_stale_reviews_on_push", False)),
-        "require_code_owner_review": bool(rs.get("pull_request", {}).get("require_code_owner_review", False)),
+        "require_code_owner_review": code_owner_review,
         "require_last_push_approval": bool(rs.get("pull_request", {}).get("require_last_push_approval", False)),
         "required_review_thread_resolution": bool(rs.get("pull_request", {}).get("required_review_thread_resolution", False)),
     }
@@ -243,10 +245,14 @@ def ruleset_diff(existing: dict, desired: dict) -> list[str]:
     return reasons
 
 
-def plan_ruleset(plan: RepoPlan, client: Client, baseline: Baseline, approvals: int, checks: list[str]) -> None:
-    desired = desired_ruleset(baseline, approvals, checks)
+def plan_ruleset(
+    plan: RepoPlan, client: Client, baseline: Baseline, approvals: int, checks: list[str], code_owner_review: bool | None = None
+) -> None:
+    desired = desired_ruleset(baseline, approvals, checks, code_owner_review)
     name = desired["name"]
-    summary = f"PR required ({approvals} approvals), checks: {', '.join(checks) or 'none'}, no force-push, no deletion"
+    pr = next(r for r in desired["rules"] if r["type"] == "pull_request")["parameters"]
+    owners = ", code-owner review" if pr["require_code_owner_review"] else ""
+    summary = f"PR required ({approvals} approvals{owners}), checks: {', '.join(checks) or 'none'}, no force-push, no deletion"
     try:
         rulesets = client.paginate(f"/repos/{plan.full_name}/rulesets", {"includes_parents": "false"})
     except ApiError as e:
@@ -301,7 +307,7 @@ def desired_files(
             plan.add(item, "skipped", path, f"skipped by {OVERRIDE_PATH}")
             continue
         if item == "codeowners":
-            content = render.render_codeowners(cfg, ov.codeowners or cfg.codeowners)
+            content = render.render_codeowners(cfg, ov.codeowners or cfg.codeowners, ov.codeowner_paths)
         elif item == "dependabot":
             content = render.render_dependabot(cfg, paths)
         elif item == "codeql":
@@ -412,7 +418,7 @@ def plan_repo(client: Client, cfg: FactoryConfig, baseline: Baseline, full_name:
         ("settings", lambda: plan_settings(plan, repo, baseline, checks)),
         ("secret-scanning", lambda: plan_secret_scanning(plan, repo, baseline)),
         ("vulnerability-alerts", lambda: plan_vulnerability_alerts(plan, client, repo, baseline)),
-        ("ruleset", lambda: plan_ruleset(plan, client, baseline, approvals, checks)),
+        ("ruleset", lambda: plan_ruleset(plan, client, baseline, approvals, checks, ov.require_code_owner_review)),
         ("labels", lambda: plan_labels(plan, client, baseline)),
     ]
     for item, fn in steps:
