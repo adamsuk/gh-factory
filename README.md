@@ -20,14 +20,14 @@ Requirements: [`gh`](https://cli.github.com) logged in (`gh auth login`), and
 `python3` 3.10 or newer. Nothing else: the one dependency (PyYAML) is vendored.
 
 ```sh
-gh extension install adamsuk/gh-factory --pin v0.1.0   # a fixed release (recommended)
+gh extension install adamsuk/gh-factory --pin vX.Y.Z   # a fixed release (recommended)
 gh extension install adamsuk/gh-factory                # or track main
 gh factory --help
 ```
 
-Unpinned installs upgrade with `gh extension upgrade factory`. To move a pinned install
-to a newer release, reinstall it with the new `--pin` tag. Releases are listed
-[here](https://github.com/adamsuk/gh-factory/releases).
+Use the latest tag from the [Releases](https://github.com/adamsuk/gh-factory/releases)
+page for `vX.Y.Z`. Unpinned installs upgrade with `gh extension upgrade factory`. To move a
+pinned install to a newer release, reinstall it with the new `--pin` tag.
 
 ## Quickstart
 
@@ -289,6 +289,61 @@ jobs:
     uses: adamsuk/gh-factory/.github/workflows/changelog.yml@<commit-sha> # v0.1.0
     # with: { changelog_file: CHANGELOG.md, skip_label: skip-changelog, skip_authors: "dependabot[bot]" }
 ```
+
+## Releases and the PR title check
+
+gh-factory releases itself: [`auto-release.yml`](.github/workflows/auto-release.yml) calls the
+reusable [`release.yml`](.github/workflows/release.yml) on every push to main.
+
+- PR titles are [Conventional Commits](https://www.conventionalcommits.org/), checked by
+  [`pr-title.yml`](.github/workflows/pr-title.yml), and PRs are squash-merged with the PR title.
+  `feat` gives a minor release, `fix` and `perf` a patch, `!` or a `BREAKING CHANGE:` footer a
+  major one. `chore`, `docs`, `ci`, `test` and the rest release nothing.
+- After a releasable merge, the workflow opens or refreshes one `chore(release): vX.Y.Z` PR. It
+  moves the dated entries under `## [Unreleased]` in `CHANGELOG.md` under
+  `## [X.Y.Z] - YYYY-MM-DD` and bumps `pyproject.toml` and `src/factory/__init__.py`.
+- GitHub doesn't start workflows on a PR opened with the `GITHUB_TOKEN`, so close and reopen
+  the release PR to run its checks, then squash-merge it. That merge tags the commit and
+  publishes the GitHub release, with that version's changelog section as the notes.
+
+Why a release PR and not a direct commit: the `factory-main` ruleset blocks pushes to main, and
+letting GitHub Actions bypass it would weaken it for every workflow (gh-factory also reports a
+bypass actor as drift). Only the default `GITHUB_TOKEN` is used, with no PAT or GitHub App. The
+repo setting "Allow GitHub Actions to create and approve pull requests" must be on.
+
+Other repos can use both workflows:
+
+```yaml
+# .github/workflows/auto-release.yml
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  release:
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: adamsuk/gh-factory/.github/workflows/release.yml@<commit-sha> # vX.Y.Z
+    with:
+      version_files: pyproject.toml   # optional; also changelog_file, tag_prefix, release_branch, initial_version
+```
+
+```yaml
+# .github/workflows/pr-title.yml
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+permissions:
+  contents: read
+jobs:
+  pr-title:
+    uses: adamsuk/gh-factory/.github/workflows/pr-title.yml@<commit-sha> # vX.Y.Z
+```
+
+The changelog must have a `## [Unreleased]` heading, with released versions as `## [X.Y.Z]`
+headings below it.
 
 ## Develop
 

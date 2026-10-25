@@ -3,6 +3,11 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+Every PR adds a dated entry (`## YYYY-MM-DD (topic)`) under `## [Unreleased]`. Releases are
+automatic: after a `feat`, `fix`, `perf` or breaking change merges, the release workflow opens a
+`chore(release): vX.Y.Z` PR that moves those entries under `## [X.Y.Z] - YYYY-MM-DD`, and merging
+that PR tags and publishes the release.
+
 ## [Unreleased]
 
 ## 2026-10-25 (code-owner review)
@@ -18,26 +23,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `codeowner_paths`, since every PR would then wait for a code owner. Nothing changes for repos
   that don't set them.
 
-## 2026-10-25 (agents may merge here)
+## [0.2.0] - 2026-10-25
 
-### Changed
+### 2026-10-25 (automatic releases)
+
+#### Added
+
+- Automatic semver releases. `.github/workflows/release.yml` is a reusable workflow that reads the
+  Conventional Commit titles since the last tag (`feat` is minor; `fix` and `perf` are patch; `!` or
+  `BREAKING CHANGE:` is major; `chore`, `docs`, `ci`, `test` and the rest release nothing) and opens
+  or refreshes a `chore(release): vX.Y.Z` PR. That PR moves the `## [Unreleased]` entries in
+  `CHANGELOG.md` under the new version heading and bumps the version in `version_files`. Merging it
+  tags the merge commit and publishes a GitHub release with that version's changelog section as
+  notes. It uses only the default `GITHUB_TOKEN`. gh-factory runs it from `auto-release.yml` on
+  every push to main.
+- `.github/workflows/pr-title.yml`: a reusable check that fails a PR whose title is not a
+  Conventional Commit, since the squash-merge commit takes the PR title. gh-factory requires its
+  `PR title` check.
+- Tests for the release logic, including an end-to-end run against a local git remote.
+
+#### Changed
+
+- `CHANGELOG.md` groups released entries under version headings: everything up to the first
+  release is now under `## [0.1.0] - 2026-10-25`, with its headings one level down.
+- README: pin a release with `--pin vX.Y.Z` from the Releases page, and a "Releases" section.
+
+### 2026-10-25 (agents may merge here)
+
+#### Changed
 
 - `.github/factory.yml` turns on `agents: { merge: true }`, so the factory agents may merge their own
   gh-factory PRs once every required check listed in that file is green. Roles stay the default
   (builder, reviewer) and the issue label stays `factory`.
 
-## 2026-10-25 (issue template placeholder)
+### 2026-10-25 (issue template placeholder)
 
-### Fixed
+#### Fixed
 
 - The baseline issue form's "Acceptance criteria" box uses a `placeholder` instead of a prefilled
   `value`. A prefilled `- [ ] ` counted as an answer, so `required: true` never stopped an empty
   checklist. This matches touchlineHQ/.github#2, so the next apply no longer reverts that fix.
   gh-factory's own copy is updated too.
 
-## 2026-10-25 (agents section)
+### 2026-10-25 (agents section)
 
-### Added
+#### Added
 
 - An optional `agents:` section in a repo's `.github/factory.yml`, for the factory's coding and
   review agents: `merge` (default `false`), `roles` (any of `intake`, `research`, `builder`,
@@ -48,15 +78,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   label is not a baseline label. gh-factory never acts on these settings; the agents read them.
 - README: an "Agents" section with examples.
 
-### Changed
+#### Changed
 
 - The baseline `factory` label's description now reads "Opened by gh-factory, or an issue queued
   for the factory agents", because agents pick up issues with that label. The next apply updates
   the label's description in enrolled repos.
 
-## 2026-10-25 (v0.1.0)
+## [0.1.0] - 2026-10-25
 
-### Changed
+### 2026-10-25 (v0.1.0)
+
+#### Changed
 
 - Auto-merge is only enabled when a repo's effective config has at least one required check.
   With no checks and no approvals, a PR set to auto-merge would merge instantly. Such repos keep
@@ -73,14 +105,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - gh-factory's `.github/factory.yml` now lists its real CI checks as `required_checks`, so its own
   `factory-main` ruleset gates merges and auto-merge is on.
 
-### Added
+#### Added
 
 - README: pin a release with `gh extension install adamsuk/gh-factory --pin v0.1.0`; a section on pinned actions.
 - The `gh-extension` topic, and release v0.1.0.
 
-## 2026-10-25
+### 2026-10-25
 
-### Changed
+#### Changed
 
 - gh-factory is enrolled in itself, and its own drift is cleared, so `gh factory plan adamsuk/gh-factory`
   shows no changes and no drift.
@@ -94,12 +126,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   not a product change, and writing into a repo's CHANGELOG.md would break the marker rule
   (CHANGELOG.md is create-only).
 
-## 2026-10-24 (gh extension)
+### 2026-10-24 (gh extension)
 
 Reworked into a GitHub CLI extension. The reasons: no private keys to create or
 guard, nothing to host, and something anyone can reuse if it is open-sourced.
 
-### Changed
+#### Changed
 
 - Renamed the repo from `adamsuk/factory` to `adamsuk/gh-factory`. Install it with
   `gh extension install adamsuk/gh-factory` and run it as `gh factory`.
@@ -116,7 +148,7 @@ guard, nothing to host, and something anyone can reuse if it is open-sourced.
 - The reusable changelog workflow is now `adamsuk/gh-factory/.github/workflows/changelog.yml@main`.
 - Vendored pure-Python PyYAML, so the extension needs only python3 (3.10+).
 
-### Added
+#### Added
 
 - MIT licence and an open-source-ready README covering install, commands, config, overrides,
   custom baselines, gh scopes, the rights each operation needs, and limitations on GitHub Free.
@@ -125,15 +157,15 @@ guard, nothing to host, and something anyone can reuse if it is open-sourced.
 - Tests for the CLI commands and config resolution. CI runs on Python 3.10 and 3.13 and checks
   that the extension runs with a bare python3.
 
-### Removed
+#### Removed
 
 - The GitHub App: `app-manifest.json`, the `FACTORY_APP_ID` / `FACTORY_APP_PRIVATE_KEY` token logic,
   and the hourly `sync.yml` workflow.
 - The hardcoded touchlineHQ/adamsuk defaults (`factory.yml`).
 
-## 2026-10-24
+### 2026-10-24
 
-### Added
+#### Added
 
 - The factory: enrol a repo by adding the `factory` topic.
 - Baseline in `baseline/`: squash-only settings with auto-merge and branch deletion, secret scanning

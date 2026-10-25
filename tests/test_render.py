@@ -86,6 +86,8 @@ def test_delivered_workflows_pin_every_action_to_a_sha(cfg, baseline):
 def test_own_workflows_are_pinned_and_match_the_baseline(baseline):
     for wf in (ROOT / ".github" / "workflows").glob("*.yml"):
         for line in _uses_lines(wf.read_text()):
+            if line.startswith("uses: ./"):
+                continue  # a reusable workflow in this repo, run at the same commit
             assert SHA_PIN.match(line), f"{wf.name}: {line}"
             action, _, rest = line.removeprefix("uses: ").partition("@")
             repo = "/".join(action.split("/")[:2])
