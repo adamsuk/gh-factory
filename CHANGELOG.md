@@ -10,9 +10,11 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
-### 2026-10-25 (CodeRabbit config)
+## [0.4.0] - 2026-10-25
 
-#### Added
+#### 2026-10-25 (CodeRabbit config)
+
+##### Added
 
 - `.coderabbit.yaml` as a baseline file (skip key `coderabbit`). It sets the `chill` profile,
   en-GB, no draft reviews, and a review instruction to treat the PR description as a claim and to
