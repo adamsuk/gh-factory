@@ -10,6 +10,19 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+## 2026-10-25 (code-owner review)
+
+### Added
+
+- Two per-repo overrides in `.github/factory.yml`. `codeowner_paths` lists the paths CODEOWNERS
+  owns instead of `*` (`/.github/` is always owned), and `require_code_owner_review` turns on
+  code-owner review in the `factory-main` ruleset. Together they make changes to agent
+  instructions, tests, CI or lockfiles wait for a person while other PRs don't
+  (adamsuk/software-factory#6, #25). Both are validated, and `plan` notes code-owner review in the
+  ruleset summary. `plan` warns when `require_code_owner_review` is on without
+  `codeowner_paths`, since every PR would then wait for a code owner. Nothing changes for repos
+  that don't set them.
+
 ## [0.2.0] - 2026-10-25
 
 ### 2026-10-25 (automatic releases)

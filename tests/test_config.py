@@ -99,3 +99,28 @@ def test_codeowners_fall_back_to_first_owner_without_a_user_token(tmp_path):
     assert cfg.codeowners == ["@touchlineHQ"]
     with pytest.raises(RuntimeError):
         resolve_config(None, None, None, no_user, env_for(tmp_path))
+
+
+@pytest.mark.parametrize(
+    "text, match",
+    [
+        ("codeowner_paths: []\n", "at least one path"),
+        ("codeowner_paths: ['/a b']\n", "single CODEOWNERS patterns"),
+        ("codeowner_paths: [3]\n", "list of strings"),
+        ("require_code_owner_review: 'yes'\n", "true or false"),
+    ],
+)
+def test_codeowner_override_validation(text, match):
+    from factory.config import parse_overrides
+
+    with pytest.raises(ConfigError, match=match):
+        parse_overrides(text)
+
+
+def test_codeowner_overrides_default_to_unset():
+    from factory.config import parse_overrides
+
+    ov = parse_overrides("codeowner_paths: ['/AGENTS.md']\nrequire_code_owner_review: false\n")
+    assert ov.codeowner_paths == ["/AGENTS.md"] and ov.require_code_owner_review is False
+    empty = parse_overrides("skip: []\n")
+    assert empty.codeowner_paths is None and empty.require_code_owner_review is None

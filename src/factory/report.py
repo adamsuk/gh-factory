@@ -11,6 +11,7 @@ ICON = {
     "open-pr": "📬",
     "update-pr": "📬",
     "drift": "⚠️",
+    "warning": "⚠️",
     "unknown": "❔",
     "unavailable": "⛔",
     "skipped": "⏭️",
