@@ -10,9 +10,11 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
-## 2026-10-25 (code-owner review)
+## [0.3.0] - 2026-10-25
 
-### Added
+### 2026-10-25 (code-owner review)
+
+#### Added
 
 - Two per-repo overrides in `.github/factory.yml`. `codeowner_paths` lists the paths CODEOWNERS
   owns instead of `*` (`/.github/` is always owned), and `require_code_owner_review` turns on

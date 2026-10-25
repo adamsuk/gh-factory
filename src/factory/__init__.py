@@ -1,3 +1,3 @@
 """Apply a standard baseline to every GitHub repo carrying the `factory` topic."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
