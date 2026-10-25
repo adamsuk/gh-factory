@@ -22,6 +22,7 @@ FILE_ITEMS = {
     "codeql": ".github/workflows/codeql.yml",
     "changelog-check": ".github/workflows/changelog.yml",
     "changelog-stub": "CHANGELOG.md",
+    "coderabbit": ".coderabbit.yaml",
 }
 ITEMS = {"settings", "secret-scanning", "vulnerability-alerts", "ruleset", "labels", "files", *FILE_ITEMS}
 OVERRIDE_KEYS = {"skip", "approvals", "required_checks", "codeowners", "codeowner_paths", "require_code_owner_review", "agents"}

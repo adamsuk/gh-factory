@@ -70,6 +70,7 @@ confirmation declined.
 | `.github/workflows/codeql.yml` for the languages found | `codeql` | one PR |
 | `.github/workflows/changelog.yml`, calling the [reusable changelog check](#reusable-changelog-check) | `changelog-check` | one PR |
 | `CHANGELOG.md` stub, only if the repo has none | `changelog-stub` | one PR |
+| `.coderabbit.yaml` for the CodeRabbit review bot: `chill` profile, en-GB, no drafts, and an instruction to read the PR description as a claim and flag protected paths. `inheritance: true` keeps org or app settings for anything it doesn't set. A hand-made file without the marker is left alone | `coderabbit` | one PR |
 
 `files` skips every file item at once.
 
