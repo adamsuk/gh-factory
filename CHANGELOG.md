@@ -10,9 +10,11 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
-## 2026-10-25 (release changelog heading levels)
+## [0.5.1] - 2026-10-25
 
-### Fixed
+### 2026-10-25 (release changelog heading levels)
+
+#### Fixed
 
 - The release workflow re-levels the entries it moves from `## [Unreleased]`: each dated entry
   becomes `###` under `## [X.Y.Z] - date` and its headings keep their relative depth from `####`,
