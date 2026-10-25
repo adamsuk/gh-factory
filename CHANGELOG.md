@@ -5,6 +5,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## 2026-10-25
+
+### Changed
+
+- gh-factory is enrolled in itself, and its own drift is cleared, so `gh factory plan adamsuk/gh-factory`
+  shows no changes and no drift.
+  - `.github/pull_request_template.md`, `.github/dependabot.yml` and `.github/workflows/codeql.yml`
+    are now exactly what the baseline delivers, with the `factory-managed` marker.
+  - `.github/factory.yml` skips `changelog-check`. Here `.github/workflows/changelog.yml` is the
+    reusable `workflow_call` source that enrolled repos call, so it can't be replaced by a caller of itself.
+- The generated Dependabot config uses `versioning-strategy: increase-if-necessary` for pip. That adopts
+  this repo's hand-written choice: deliberate lower bounds are kept, and exact pins still get bumped.
+- Factory sync PRs keep carrying the `skip-changelog` label (unchanged). A baseline sync is housekeeping,
+  not a product change, and writing into a repo's CHANGELOG.md would break the marker rule
+  (CHANGELOG.md is create-only).
+
 ## 2026-10-24 (gh extension)
 
 Reworked into a GitHub CLI extension. The reasons: no private keys to create or

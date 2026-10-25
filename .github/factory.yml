@@ -1,0 +1,6 @@
+# gh-factory's own overrides (see README.md, "Per-repo overrides").
+skip:
+  # .github/workflows/changelog.yml here is the reusable `workflow_call` source that every
+  # enrolled repo calls. The baseline would replace it with a caller of itself, so it is
+  # owned by this repo instead. It still checks this repo's own PRs via its pull_request trigger.
+  - changelog-check

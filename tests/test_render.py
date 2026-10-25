@@ -52,3 +52,10 @@ def test_rendered_templates_are_valid(cfg, baseline):
                 yaml.safe_load(text)
     caller = yaml.safe_load(render_template(baseline, cfg, ".github/workflows/changelog.yml", "app"))
     assert caller["jobs"]["changelog"]["uses"] == "adamsuk/gh-factory/.github/workflows/changelog.yml@main"
+
+
+def test_pip_keeps_lower_bounds(cfg):
+    data = yaml.safe_load(render_dependabot(cfg, ["pyproject.toml", "package.json"]))
+    by_eco = {u["package-ecosystem"]: u for u in data["updates"]}
+    assert by_eco["pip"]["versioning-strategy"] == "increase-if-necessary"
+    assert "versioning-strategy" not in by_eco["npm"]
