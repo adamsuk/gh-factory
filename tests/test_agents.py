@@ -136,3 +136,9 @@ def test_plan_notes_merge_without_the_reviewer_role(cfg, baseline):
     assert plan.agent_notes == []
     plan = plan_with(cfg, baseline, "required_checks: [Test]\nagents:\n  merge: true\n  roles: []\n")
     assert plan.agent_notes == [NO_REVIEWER_AGENT_MERGE]
+
+
+def test_plan_shows_a_test_command_with_backticks_exactly(cfg, baseline):
+    plan = plan_with(cfg, baseline, "agents:\n  test_command: echo `date` && pytest -q\n")
+    md = markdown([plan], mode="dry run", scope="", topic="factory")
+    assert "test command ``echo `date` && pytest -q``" in md

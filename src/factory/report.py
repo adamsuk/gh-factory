@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from .plan import RepoPlan
 
 ICON = {
@@ -19,6 +21,14 @@ ICON = {
 }
 
 
+def code_span(text: str) -> str:
+    """A Markdown inline code span showing `text` exactly, even when it contains backticks."""
+    longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
+    fence = "`" * (longest + 1)
+    pad = " " if text.startswith("`") or text.endswith("`") else ""
+    return f"{fence}{pad}{text}{pad}{fence}"
+
+
 def markdown(plans: list[RepoPlan], *, mode: str, scope: str, topic: str) -> str:
     lines = [f"# Factory plan ({mode})", "", scope, ""]
     if not plans:
@@ -31,7 +41,7 @@ def markdown(plans: list[RepoPlan], *, mode: str, scope: str, topic: str) -> str
         if p.agents is not None:
             a = p.agents
             roles = ", ".join(a.roles) or "none"
-            test = f"`{a.test_command}`" if a.test_command else "from CI"
+            test = code_span(a.test_command) if a.test_command else "from CI"
             lines += [
                 f"Agents: roles {roles} · merge {'on' if a.merge else 'off'} · issue label `{a.issue_label}`"
                 f" · review bot {a.review_bot} · test command {test}",
