@@ -5,6 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## 2026-10-25 (issue template placeholder)
+
+### Fixed
+
+- The baseline issue form's "Acceptance criteria" box uses a `placeholder` instead of a prefilled
+  `value`. A prefilled `- [ ] ` counted as an answer, so `required: true` never stopped an empty
+  checklist. This matches touchlineHQ/.github#2, so the next apply no longer reverts that fix.
+  gh-factory's own copy is updated too.
+
 ## 2026-10-25 (agents section)
 
 ### Added

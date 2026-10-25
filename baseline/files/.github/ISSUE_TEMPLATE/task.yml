@@ -21,8 +21,8 @@ body:
     attributes:
       label: Acceptance criteria
       description: How we know it is done. One checkable item per line.
-      value: |
-        - [ ] 
+      placeholder: |
+        - [ ] The thing works as described
     validations:
       required: true
   - type: textarea
