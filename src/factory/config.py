@@ -29,8 +29,11 @@ OVERRIDE_KEYS = {"skip", "approvals", "required_checks", "codeowners", "codeowne
 # Roles the factory agents can take in a repo (see README, "Agents").
 AGENT_ROLES = ("intake", "research", "builder", "reviewer")
 DEFAULT_AGENT_ROLES = ("builder", "reviewer")
-AGENT_KEYS = {"merge", "roles", "issue_label"}
+AGENT_KEYS = {"merge", "roles", "issue_label", "review_bot", "test_command"}
 DEFAULT_ISSUE_LABEL = "factory"
+# Review bots that may review PRs in a repo (`none` means only the factory's PR Reviewer).
+REVIEW_BOTS = ("coderabbit", "none")
+DEFAULT_REVIEW_BOT = "none"
 OVERRIDE_PATH = ".github/factory.yml"
 CONFIG_KEYS = {
     "owners",
@@ -108,9 +111,17 @@ class AgentSettings:
     merge: bool = False  # off unless the repo opts in
     roles: list[str] = field(default_factory=lambda: list(DEFAULT_AGENT_ROLES))
     issue_label: str = DEFAULT_ISSUE_LABEL
+    review_bot: str = DEFAULT_REVIEW_BOT  # which review bot also reviews PRs here
+    test_command: str | None = None  # what the builder runs before opening a PR; None means read CI
 
     def as_dict(self) -> dict[str, Any]:
-        return {"merge": self.merge, "roles": list(self.roles), "issue_label": self.issue_label}
+        return {
+            "merge": self.merge,
+            "roles": list(self.roles),
+            "issue_label": self.issue_label,
+            "review_bot": self.review_bot,
+            "test_command": self.test_command,
+        }
 
 
 @dataclass
@@ -315,4 +326,16 @@ def parse_agents(raw: Any) -> AgentSettings:
         if not isinstance(label, str) or not label.strip():
             raise ConfigError(f"{where}.issue_label must be a non-empty string")
         agents.issue_label = label
+    if "review_bot" in raw:
+        bot = raw["review_bot"]
+        if bot not in REVIEW_BOTS:
+            raise ConfigError(f"{where}.review_bot must be one of {list(REVIEW_BOTS)}")
+        agents.review_bot = bot
+    if "test_command" in raw:
+        cmd = raw["test_command"]
+        if cmd is not None:
+            if not isinstance(cmd, str) or not cmd.strip():
+                raise ConfigError(f"{where}.test_command must be a non-empty string")
+            cmd = cmd.strip()
+        agents.test_command = cmd
     return agents
