@@ -24,7 +24,12 @@ FILE_ITEMS = {
     "changelog-stub": "CHANGELOG.md",
 }
 ITEMS = {"settings", "secret-scanning", "vulnerability-alerts", "ruleset", "labels", "files", *FILE_ITEMS}
-OVERRIDE_KEYS = {"skip", "approvals", "required_checks", "codeowners"}
+OVERRIDE_KEYS = {"skip", "approvals", "required_checks", "codeowners", "agents"}
+# Roles the factory agents can take in a repo (see README, "Agents").
+AGENT_ROLES = ("intake", "research", "builder", "reviewer")
+DEFAULT_AGENT_ROLES = ("builder", "reviewer")
+AGENT_KEYS = {"merge", "roles", "issue_label"}
+DEFAULT_ISSUE_LABEL = "factory"
 OVERRIDE_PATH = ".github/factory.yml"
 CONFIG_KEYS = {
     "owners",
@@ -96,11 +101,24 @@ class Baseline:
 
 
 @dataclass
+class AgentSettings:
+    """What the factory agents may do in one repo. Read by the agents, never applied by gh-factory."""
+
+    merge: bool = False  # off unless the repo opts in
+    roles: list[str] = field(default_factory=lambda: list(DEFAULT_AGENT_ROLES))
+    issue_label: str = DEFAULT_ISSUE_LABEL
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"merge": self.merge, "roles": list(self.roles), "issue_label": self.issue_label}
+
+
+@dataclass
 class RepoOverrides:
     skip: set[str] = field(default_factory=set)
     approvals: int | None = None
     required_checks: list[str] | None = None
     codeowners: list[str] | None = None
+    agents: AgentSettings = field(default_factory=AgentSettings)
 
     def skips(self, item: str) -> bool:
         if item in self.skip:
@@ -244,4 +262,41 @@ def parse_overrides(text: str | None) -> RepoOverrides:
     for key in ("required_checks", "codeowners"):
         if key in raw:
             setattr(ov, key, _str_list(raw, key, OVERRIDE_PATH))
+    if "agents" in raw:
+        ov.agents = parse_agents(raw["agents"])
     return ov
+
+
+def parse_agents(raw: Any) -> AgentSettings:
+    """Validate the `agents:` section of .github/factory.yml. Every key is optional."""
+    where = f"{OVERRIDE_PATH}: `agents`"
+    if raw is None:
+        return AgentSettings()
+    if not isinstance(raw, dict):
+        raise ConfigError(f"{where} must be a mapping")
+    unknown = set(raw) - AGENT_KEYS
+    if unknown:
+        raise ConfigError(f"{where}: unknown keys {sorted(unknown)}; allowed {sorted(AGENT_KEYS)}")
+    agents = AgentSettings()
+    if "merge" in raw:
+        if not isinstance(raw["merge"], bool):
+            raise ConfigError(f"{where}.merge must be true or false")
+        agents.merge = raw["merge"]
+    if "roles" in raw:
+        roles = raw["roles"]
+        if roles is None:
+            roles = []
+        if not isinstance(roles, list) or not all(isinstance(r, str) for r in roles):
+            raise ConfigError(f"{where}.roles must be a list of role names")
+        bad = sorted(set(roles) - set(AGENT_ROLES))
+        if bad:
+            raise ConfigError(f"{where}.roles: unknown roles {bad}; allowed {list(AGENT_ROLES)}")
+        if len(set(roles)) != len(roles):
+            raise ConfigError(f"{where}.roles lists a role more than once")
+        agents.roles = list(roles)
+    if "issue_label" in raw:
+        label = raw["issue_label"]
+        if not isinstance(label, str) or not label.strip():
+            raise ConfigError(f"{where}.issue_label must be a non-empty string")
+        agents.issue_label = label
+    return agents

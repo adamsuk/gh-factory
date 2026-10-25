@@ -13,6 +13,7 @@ from .client import ApiError, Client
 from .config import (
     FILE_ITEMS,
     OVERRIDE_PATH,
+    AgentSettings,
     Baseline,
     ConfigError,
     FactoryConfig,
@@ -45,6 +46,8 @@ class RepoPlan:
     files: dict[str, str] = field(default_factory=dict)  # path -> content to commit on the sync branch
     open_pr: dict | None = None
     enrolled: bool = True
+    agents: AgentSettings | None = None  # None when .github/factory.yml could not be read
+    agent_notes: list[str] = field(default_factory=list)
 
     @property
     def owner(self) -> str:
@@ -356,6 +359,21 @@ def plan_pull_request(plan: RepoPlan, client: Client, cfg: FactoryConfig) -> Non
         plan.add("files", "open-pr", cfg.sync_branch, f"open one PR into {plan.default_branch} ({n} files)")
 
 
+# ---------------------------------------------------------------- agents
+
+NO_CHECKS_AGENT_MERGE = "agents.merge is true but there are no required checks, so agents must not merge here"
+
+
+def agent_notes(agents: AgentSettings, checks: list[str], baseline: Baseline) -> list[str]:
+    """Informational notes about the `agents:` section. gh-factory never acts on it."""
+    notes = []
+    if agents.merge and not checks:
+        notes.append(NO_CHECKS_AGENT_MERGE)
+    if agents.issue_label.lower() not in {str(lbl.get("name", "")).lower() for lbl in baseline.labels}:
+        notes.append(f"issue label `{agents.issue_label}` is not a baseline label; create it in the repo")
+    return notes
+
+
 # ---------------------------------------------------------------- repo
 
 
@@ -387,6 +405,8 @@ def plan_repo(client: Client, cfg: FactoryConfig, baseline: Baseline, full_name:
 
     approvals = ov.approvals if ov.approvals is not None else cfg.approvals
     checks = ov.required_checks if ov.required_checks is not None else cfg.required_checks
+    plan.agents = ov.agents
+    plan.agent_notes = agent_notes(ov.agents, checks, baseline)
 
     steps = [
         ("settings", lambda: plan_settings(plan, repo, baseline, checks)),

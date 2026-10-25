@@ -27,6 +27,13 @@ def markdown(plans: list[RepoPlan], *, mode: str, scope: str, topic: str) -> str
         writes = sum(c.writes for c in p.changes)
         note = "" if p.enrolled else f" · not enrolled (no `{topic}` topic)"
         lines += [f"## {p.full_name}", "", f"{writes} change(s), default branch `{p.default_branch}`{note}", ""]
+        if p.agents is not None:
+            a = p.agents
+            roles = ", ".join(a.roles) or "none"
+            lines += [f"Agents: roles {roles} · merge {'on' if a.merge else 'off'} · issue label `{a.issue_label}`", ""]
+            lines += [f"- ℹ️ {n}" for n in p.agent_notes]
+            if p.agent_notes:
+                lines.append("")
         if not p.changes:
             lines.append("- ✅ already matches the baseline")
         for c in p.changes:
@@ -42,6 +49,7 @@ def as_json(plans: list[RepoPlan]) -> list[dict]:
             "repo": p.full_name,
             "default_branch": p.default_branch,
             "enrolled": p.enrolled,
+            "agents": None if p.agents is None else {**p.agents.as_dict(), "notes": list(p.agent_notes)},
             "changes": [{"item": c.item, "action": c.action, "target": c.target, "detail": c.detail} for c in p.changes],
         }
         for p in plans
