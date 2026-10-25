@@ -227,3 +227,16 @@ def test_code_owner_review_stays_off_by_default(cfg, baseline):
 def test_existing_ruleset_without_code_owner_review_is_updated(cfg, baseline):
     existing = {"id": 3, **desired_ruleset(baseline, 0, [])}
     assert ruleset_diff(existing, desired_ruleset(baseline, 0, [], True)) == ["rule pull_request"]
+
+
+def test_code_owner_review_without_paths_warns(cfg, baseline):
+    plan = plan_repo(FakeClient(repo_routes(files={".github/factory.yml": "require_code_owner_review: true\n"})), cfg, baseline, FULL)
+    warnings = [c for c in plan.changes if c.action == "warning"]
+    assert [(c.item, c.target) for c in warnings] == [("ruleset", "require_code_owner_review")]
+    assert "codeowner_paths" in warnings[0].detail and not warnings[0].writes
+
+
+def test_code_owner_review_with_paths_does_not_warn(cfg, baseline):
+    override = "codeowner_paths: ['/AGENTS.md']\nrequire_code_owner_review: true\n"
+    plan = plan_repo(FakeClient(repo_routes(files={".github/factory.yml": override})), cfg, baseline, FULL)
+    assert not [c for c in plan.changes if c.action == "warning"]

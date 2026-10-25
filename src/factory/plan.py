@@ -28,7 +28,7 @@ WRITE_ACTIONS = {"create", "update", "enable", "open-pr", "update-pr"}
 @dataclass
 class Change:
     item: str
-    action: str  # create | update | enable | open-pr | update-pr | drift | unavailable | unknown | skipped | error
+    action: str  # create | update | enable | open-pr | update-pr | drift | warning | unavailable | unknown | skipped | error
     target: str
     detail: str = ""
     payload: Any = None
@@ -370,6 +370,11 @@ def plan_pull_request(plan: RepoPlan, client: Client, cfg: FactoryConfig) -> Non
 NO_CHECKS_AGENT_MERGE = "agents.merge is true but there are no required checks, so agents must not merge here"
 
 
+CODE_OWNER_REVIEW_WITHOUT_PATHS = (
+    "code-owner review is on but `codeowner_paths` is not set, so CODEOWNERS owns `*` and every PR waits for a code owner"
+)
+
+
 def agent_notes(agents: AgentSettings, checks: list[str], baseline: Baseline) -> list[str]:
     """Informational notes about the `agents:` section. gh-factory never acts on it."""
     notes = []
@@ -413,6 +418,8 @@ def plan_repo(client: Client, cfg: FactoryConfig, baseline: Baseline, full_name:
     checks = ov.required_checks if ov.required_checks is not None else cfg.required_checks
     plan.agents = ov.agents
     plan.agent_notes = agent_notes(ov.agents, checks, baseline)
+    if ov.require_code_owner_review and ov.codeowner_paths is None and not ov.skips("codeowners"):
+        plan.add("ruleset", "warning", "require_code_owner_review", CODE_OWNER_REVIEW_WITHOUT_PATHS)
 
     steps = [
         ("settings", lambda: plan_settings(plan, repo, baseline, checks)),
