@@ -22,3 +22,8 @@ required_checks:
 # (builder, reviewer) and the issue label stays `factory`.
 agents:
   merge: true
+  # CodeRabbit reviews PRs here (it posted a review summary on #17), so an agent merge also needs
+  # no blocking CodeRabbit findings, plus PR Reviewer's review (AGENTS.md section 6).
+  review_bot: coderabbit
+  # The CI test job's commands (run after `pip install -e '.[dev]'` in a venv).
+  test_command: ruff check . && ruff format --check . && pytest -q

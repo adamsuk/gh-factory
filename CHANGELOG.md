@@ -10,6 +10,15 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+#### 2026-10-25 (agents review bot and test command)
+
+##### Added
+
+- `agents.review_bot` (`coderabbit` or `none`, default `none`) and `agents.test_command` (an
+  optional string) in `.github/factory.yml`. Both are validated, shown on the plan's Agents line
+  and included in `--json`. The plan also notes `merge: true` without the `reviewer` role, since
+  every agent merge needs PR Reviewer's review (from the adamsuk/gh-factory#16 trial).
+
 ## [0.4.0] - 2026-10-25
 
 #### 2026-10-25 (CodeRabbit config)

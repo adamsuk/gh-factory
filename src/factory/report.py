@@ -31,7 +31,12 @@ def markdown(plans: list[RepoPlan], *, mode: str, scope: str, topic: str) -> str
         if p.agents is not None:
             a = p.agents
             roles = ", ".join(a.roles) or "none"
-            lines += [f"Agents: roles {roles} · merge {'on' if a.merge else 'off'} · issue label `{a.issue_label}`", ""]
+            test = f"`{a.test_command}`" if a.test_command else "from CI"
+            lines += [
+                f"Agents: roles {roles} · merge {'on' if a.merge else 'off'} · issue label `{a.issue_label}`"
+                f" · review bot {a.review_bot} · test command {test}",
+                "",
+            ]
             lines += [f"- ℹ️ {n}" for n in p.agent_notes]
             if p.agent_notes:
                 lines.append("")

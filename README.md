@@ -163,9 +163,12 @@ but never acts on it: the agents read it themselves before they work.
 | `merge` | `false` | Agents may merge their own PRs. Off unless set to `true`. Even then an agent should merge only when the repo's required checks are green, so the plan adds a note if `merge: true` but the repo has no required checks. |
 | `roles` | `[builder, reviewer]` | Which roles run here: `intake` (files issues from signals), `research` (keeps research content current), `builder` (turns labelled issues into PRs), `reviewer` (reviews PRs). `[]` means no agent works here. |
 | `issue_label` | `factory` | Only open issues with this label are picked up by the builder. `factory` is a baseline label; a different label gets a plan note so you remember to create it. |
+| `review_bot` | `none` | Which review bot also reviews PRs here: `coderabbit` or `none`. With `coderabbit`, an agent merges only when CodeRabbit has no blocking findings and PR Reviewer has reviewed. With `none`, PR Reviewer's review (no unresolved should-fix findings) is the review gate. Either way the required checks must be green, so the plan adds a note if `merge: true` but the `reviewer` role is off. |
+| `test_command` | unset | The command the builder runs before opening a PR, for example `ruff check . && pytest -q`. When unset, the builder reads the repo's CI to find it and notes the command it used in the PR body. |
 
-Unknown keys, unknown roles, duplicate roles and non-boolean `merge` values are
-errors, and as with any invalid override file the factory then leaves the repo alone.
+Unknown keys, unknown roles, duplicate roles, non-boolean `merge` values, a
+`review_bot` other than `coderabbit` or `none`, and an empty or non-string
+`test_command` are errors, and as with any invalid override file the factory then leaves the repo alone.
 
 ```yaml
 # Default: builder and reviewer, no merging. Same as leaving `agents:` out.
@@ -183,6 +186,16 @@ agents:
 ```
 
 ```yaml
+# A repo CodeRabbit also reviews, with the builder's test command spelled out.
+required_checks:
+  - Test and lint
+agents:
+  merge: true
+  review_bot: coderabbit
+  test_command: ruff check . && pytest -q
+```
+
+```yaml
 # A research repo: research and review only, picked up by a custom label.
 agents:
   roles: [research, reviewer]
@@ -190,9 +203,9 @@ agents:
 ```
 
 In the plan this shows as a line such as
-`Agents: roles builder, reviewer · merge off · issue label `factory``, and in
-`--json` each repo has an `agents` object with `merge`, `roles`, `issue_label`
-and `notes` (it is `null` when the override file is invalid). The `factory`
+`Agents: roles builder, reviewer · merge off · issue label `factory` · review bot none · test command from CI`,
+and in `--json` each repo has an `agents` object with `merge`, `roles`,
+`issue_label`, `review_bot`, `test_command` (`null` when unset) and `notes` (it is `null` when the override file is invalid). The `factory`
 label is shared with gh-factory's own sync PRs, so agents should pick up issues
 only, never pull requests.
 

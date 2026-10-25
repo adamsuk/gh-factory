@@ -368,6 +368,9 @@ def plan_pull_request(plan: RepoPlan, client: Client, cfg: FactoryConfig) -> Non
 # ---------------------------------------------------------------- agents
 
 NO_CHECKS_AGENT_MERGE = "agents.merge is true but there are no required checks, so agents must not merge here"
+NO_REVIEWER_AGENT_MERGE = (
+    "agents.merge is true but the reviewer role is off, and every agent merge needs PR Reviewer's review, so agents must not merge here"
+)
 
 
 CODE_OWNER_REVIEW_WITHOUT_PATHS = (
@@ -380,6 +383,8 @@ def agent_notes(agents: AgentSettings, checks: list[str], baseline: Baseline) ->
     notes = []
     if agents.merge and not checks:
         notes.append(NO_CHECKS_AGENT_MERGE)
+    if agents.merge and "reviewer" not in agents.roles:
+        notes.append(NO_REVIEWER_AGENT_MERGE)
     if agents.issue_label.lower() not in {str(lbl.get("name", "")).lower() for lbl in baseline.labels}:
         notes.append(f"issue label `{agents.issue_label}` is not a baseline label; create it in the repo")
     return notes
