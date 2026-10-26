@@ -10,6 +10,12 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+## 2026-10-26 (changelog example version)
+
+### Changed
+
+- README: the reusable changelog check example uses `# vX.Y.Z`, matching the other reusable-workflow examples.
+
 ## [0.5.1] - 2026-10-25
 
 ### 2026-10-25 (release changelog heading levels)
