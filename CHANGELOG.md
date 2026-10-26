@@ -21,6 +21,14 @@ that PR tags and publishes the release.
   `factory:blocked` is red. The existing `factory` label is unchanged
   (adamsuk/software-factory#52).
 
+## 2026-10-26 (CodeRabbit approvals)
+
+### Added
+
+- `.coderabbit.yaml` turns on CodeRabbit's approve/request-changes workflow
+  (`reviews.auto_approvals.enabled: true`), so CodeRabbit posts APPROVED or CHANGES_REQUESTED
+  reviews instead of only COMMENTED ones and its approval can be one part of the sign-off gate.
+
 ## [0.5.1] - 2026-10-25
 
 ### 2026-10-25 (release changelog heading levels)
