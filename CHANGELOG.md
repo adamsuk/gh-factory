@@ -10,6 +10,15 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+## 2026-10-26 (baseline target repo)
+
+### Added
+
+- The baseline task form asks for one target repository in a required textarea above
+  Problem, prefilled with `Target repo: owner/repo`. The filer replaces `owner/repo`
+  with one real repository. The Acceptance criteria field stays a required placeholder
+  (adamsuk/software-factory#66).
+
 ## 2026-10-26 (changelog example version)
 
 ### Changed
