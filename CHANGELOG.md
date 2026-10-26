@@ -10,6 +10,14 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+## 2026-10-26 (live task target)
+
+### Added
+
+- The live task form asks for one target repository in a required textarea above
+  Problem, prefilled with `Target repo: owner/repo`. The filer replaces `owner/repo`
+  with one real repository (adamsuk/software-factory#75).
+
 ## 2026-10-26 (agents issue label)
 
 ### Changed
