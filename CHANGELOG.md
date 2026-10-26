@@ -10,6 +10,16 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+## 2026-10-26 (agents issue label)
+
+### Changed
+
+- README: the Agents table says Station 03 Bench picks an open issue labelled
+  `factory:ready` whose target repo lists `builder` in `agents.roles`. gh-factory
+  does not pick issues or open pull requests. `issue_label` still defaults to
+  `factory`, and a label outside the baseline still gets a plan note
+  (adamsuk/software-factory#70).
+
 ## 2026-10-26 (baseline target repo)
 
 ### Added
