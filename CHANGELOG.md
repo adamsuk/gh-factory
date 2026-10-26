@@ -10,6 +10,17 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+## 2026-10-26 (factory status labels)
+
+### Added
+
+- Nine station status labels in the baseline: `factory:triage`, `factory:ready`,
+  `factory:building`, `factory:gate`, `factory:review`, `factory:merge`,
+  `factory:release`, `factory:done` and `factory:blocked`. `plan` proposes and
+  `apply` creates them in every enrolled repo. Blues through greens follow the stations;
+  `factory:blocked` is red. The existing `factory` label is unchanged
+  (adamsuk/software-factory#52).
+
 ## 2026-10-26 (CodeRabbit approvals)
 
 ### Added
