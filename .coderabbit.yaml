@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 # CodeRabbit approves PRs with no blocking findings and requests changes otherwise,
-# so its approval can be the sign-off gate. (Replaces the deprecated
+# so its approval can be one part of the sign-off gate. (Replaces the deprecated
 # reviews.request_changes_workflow.)
 reviews:
   auto_approvals:
