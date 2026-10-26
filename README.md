@@ -300,7 +300,7 @@ permissions:
   pull-requests: read
 jobs:
   changelog:
-    uses: adamsuk/gh-factory/.github/workflows/changelog.yml@<commit-sha> # v0.1.0
+    uses: adamsuk/gh-factory/.github/workflows/changelog.yml@<commit-sha> # vX.Y.Z
     # with: { changelog_file: CHANGELOG.md, skip_label: skip-changelog, skip_authors: "dependabot[bot]" }
 ```
 
