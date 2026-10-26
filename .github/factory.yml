@@ -18,10 +18,11 @@ required_checks:
   - PR title
 
 # Factory agents (see README.md, "Agents"). Scott approved agent merges here on 2026-10-25.
-# Agents still merge only when the required checks above are green. Roles stay the default
-# (builder, reviewer) and the issue label stays `factory`.
+# Agents still merge only when the required checks above are green. Roles are intake, builder
+# and reviewer, and the issue label stays `factory`.
 agents:
   merge: true
+  roles: [intake, builder, reviewer]
   # CodeRabbit reviews PRs here (it posted a review summary on #17), so an agent merge also needs
   # no blocking CodeRabbit findings, plus PR Reviewer's review (AGENTS.md section 6).
   review_bot: coderabbit

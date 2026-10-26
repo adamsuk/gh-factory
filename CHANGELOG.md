@@ -10,6 +10,13 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+## 2026-10-26 (intake role)
+
+### Added
+
+- `.github/factory.yml` sets `agents.roles` to intake, builder and reviewer, so Station 01
+  can triage this repository (adamsuk/software-factory#64).
+
 ## 2026-10-26 (live task target)
 
 ### Added
