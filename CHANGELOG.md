@@ -10,24 +10,26 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
-## 2026-10-26 (intake role)
+## [0.6.0] - 2026-10-26
 
-### Added
+### 2026-10-26 (intake role)
+
+#### Added
 
 - `.github/factory.yml` sets `agents.roles` to intake, builder and reviewer, so Station 01
   can triage this repository (adamsuk/software-factory#64).
 
-## 2026-10-26 (live task target)
+### 2026-10-26 (live task target)
 
-### Added
+#### Added
 
 - The live task form asks for one target repository in a required textarea above
   Problem, prefilled with `Target repo: owner/repo`. The filer replaces `owner/repo`
   with one real repository (adamsuk/software-factory#75).
 
-## 2026-10-26 (agents issue label)
+### 2026-10-26 (agents issue label)
 
-### Changed
+#### Changed
 
 - README: the Agents table says Station 03 Bench picks an open issue labelled
   `factory:ready` whose target repo lists `builder` in `agents.roles`. gh-factory
@@ -35,24 +37,24 @@ that PR tags and publishes the release.
   `factory`, and a label outside the baseline still gets a plan note
   (adamsuk/software-factory#70).
 
-## 2026-10-26 (baseline target repo)
+### 2026-10-26 (baseline target repo)
 
-### Added
+#### Added
 
 - The baseline task form asks for one target repository in a required textarea above
   Problem, prefilled with `Target repo: owner/repo`. The filer replaces `owner/repo`
   with one real repository. The Acceptance criteria field stays a required placeholder
   (adamsuk/software-factory#66).
 
-## 2026-10-26 (changelog example version)
+### 2026-10-26 (changelog example version)
 
-### Changed
+#### Changed
 
 - README: the reusable changelog check example uses `# vX.Y.Z`, matching the other reusable-workflow examples.
 
-## 2026-10-26 (factory status labels)
+### 2026-10-26 (factory status labels)
 
-### Added
+#### Added
 
 - Nine station status labels in the baseline: `factory:triage`, `factory:ready`,
   `factory:building`, `factory:gate`, `factory:review`, `factory:merge`,
@@ -61,9 +63,9 @@ that PR tags and publishes the release.
   `factory:blocked` is red. The existing `factory` label is unchanged
   (adamsuk/software-factory#52).
 
-## 2026-10-26 (CodeRabbit approvals)
+### 2026-10-26 (CodeRabbit approvals)
 
-### Added
+#### Added
 
 - `.coderabbit.yaml` turns on CodeRabbit's approve/request-changes workflow
   (`reviews.auto_approvals.enabled: true`), so CodeRabbit posts APPROVED or CHANGES_REQUESTED
