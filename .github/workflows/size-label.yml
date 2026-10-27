@@ -78,7 +78,9 @@ jobs:
           # Remove existing size labels
           existing_labels=$(gh pr view "$PR" --repo "$REPO" --json labels --jq '.labels[].name' | grep "^${LABEL_PREFIX}" || true)
           for l in $existing_labels; do
-            [ -n "$l" ] && gh pr edit "$PR" --repo "$REPO" --remove-label "$l" || true
+            if [ -n "$l" ]; then
+              gh pr edit "$PR" --repo "$REPO" --remove-label "$l" || true
+            fi
           done
           
           # Add new label
