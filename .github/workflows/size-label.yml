@@ -79,10 +79,11 @@ jobs:
           existing_labels=$(gh pr view "$PR" --repo "$REPO" --json labels --jq '.labels[].name' | grep "^${LABEL_PREFIX}" || true)
           for l in $existing_labels; do
             if [ -n "$l" ]; then
-              gh pr edit "$PR" --repo "$REPO" --remove-label "$l" || true
+              gh pr edit "$PR" --repo "$REPO" --remove-label "$l" 2>/dev/null || true
             fi
           done
           
-          # Add new label
-          gh pr edit "$PR" --repo "$REPO" --add-label "$label"
+          # Add new label (create if needed)
+          gh label create "${label}" --repo "$REPO" --color "ededed" --description "PR size" 2>/dev/null || true
+          gh pr edit "$PR" --repo "$REPO" --add-label "$label" 2>/dev/null || true
           echo "Applied label $label (${changes} changes)"
