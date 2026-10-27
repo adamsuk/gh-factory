@@ -1,0 +1,16 @@
+# {{marker}}: maintained by https://github.com/{{workflows_repo}}. Remove this line to take ownership.
+name: Size Label
+
+# Apply a size label (size/S, size/M, size/L, size/XL) based on PR diff.
+# Labels changed files and/or total line changes to help scale review depth.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  size-label:
+    uses: {{workflows_repo}}/.github/workflows/size-label.yml@{{workflows_pin}}

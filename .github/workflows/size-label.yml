@@ -1,0 +1,86 @@
+name: Size Label
+
+# Apply a size label (size/S, size/M, size/L, size/XL) based on PR diff.
+# Generic and reusable: other repos call it with
+#   jobs:
+#     size-label:
+#       uses: adamsuk/gh-factory/.github/workflows/size-label.yml@<commit-sha>
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_call:
+    inputs:
+      xs_lines:
+        type: number
+        default: 10
+      s_lines:
+        type: number
+        default: 50
+      m_lines:
+        type: number
+        default: 200
+      l_lines:
+        type: number
+        default: 500
+      exclude_paths:
+        type: string
+        default: ''
+      label_prefix:
+        type: string
+        default: 'size/'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  size-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Label PR by size
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          XS_LINES: ${{ inputs.xs_lines || 10 }}
+          S_LINES: ${{ inputs.s_lines || 50 }}
+          M_LINES: ${{ inputs.m_lines || 200 }}
+          L_LINES: ${{ inputs.l_lines || 500 }}
+          EXCLUDE_PATHS: ${{ inputs.exclude_paths || '' }}
+          LABEL_PREFIX: ${{ inputs.label_prefix || 'size/' }}
+        run: |
+          if [ -z "$PR" ]; then
+            echo "Not a pull request; nothing to do."
+            exit 0
+          fi
+          
+          # Get PR files and calculate changes
+          files_json=$(gh api "repos/$REPO/pulls/$PR/files" --paginate)
+          additions=$(echo "$files_json" | jq '[.[].additions] | add // 0')
+          deletions=$(echo "$files_json" | jq '[.[].deletions] | add // 0')
+          changes=$((additions + deletions))
+          
+          # Determine size
+          if [ "$changes" -le "$XS_LINES" ]; then
+            size="XS"
+          elif [ "$changes" -le "$S_LINES" ]; then
+            size="S"
+          elif [ "$changes" -le "$M_LINES" ]; then
+            size="M"
+          elif [ "$changes" -le "$L_LINES" ]; then
+            size="L"
+          else
+            size="XL"
+          fi
+          
+          label="${LABEL_PREFIX}${size}"
+          
+          # Remove existing size labels
+          existing_labels=$(gh pr view "$PR" --repo "$REPO" --json labels --jq '.labels[].name' | grep "^${LABEL_PREFIX}" || true)
+          for l in $existing_labels; do
+            [ -n "$l" ] && gh pr edit "$PR" --repo "$REPO" --remove-label "$l" || true
+          done
+          
+          # Add new label
+          gh pr edit "$PR" --repo "$REPO" --add-label "$label"
+          echo "Applied label $label (${changes} changes)"
