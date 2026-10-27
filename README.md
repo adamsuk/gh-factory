@@ -373,3 +373,8 @@ Every change needs a dated entry in [CHANGELOG.md](CHANGELOG.md).
 ## Licence
 
 [MIT](LICENSE). Vendored PyYAML is MIT too ([licence](src/factory/_vendor/yaml/LICENSE)).
+
+
+## Review depth guidelines
+
+See [docs/review-depth.md](docs/review-depth.md) for guidelines on scaling review depth by PR size and risk. The size-label workflow is included as a baseline for all enrolled repos.
