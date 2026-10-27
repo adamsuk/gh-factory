@@ -281,3 +281,9 @@ guard, nothing to host, and something anyone can reuse if it is open-sourced.
   Dependabot (`skip_authors` input).
 - Dependabot for this repo, keeping deliberate lower bounds in `pyproject.toml` (`increase-if-necessary`).
 - Python engine with tests against mocked API responses, plus CI (ruff, pytest, actionlint).
+
+## 2026-10-27
+
+### Added
+
+- Add size-label workflow baseline and review depth guidelines (#15)
