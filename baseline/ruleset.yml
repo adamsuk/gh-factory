@@ -5,7 +5,15 @@ enforcement: active
 include:
   - "~DEFAULT_BRANCH"
 pull_request:
-  dismiss_stale_reviews_on_push: false
+  # True so a changes-requested review on a commit that is no longer the head
+  # stops blocking the merge. This weakens no gate: required approvals come from
+  # factory.yml and are 0 by default, so nothing here required an approval --
+  # only a stale objection could, and indefinitely. It deadlocked
+  # adamsuk/activity-feed#20, where CodeRabbit requested changes on 0972b73,
+  # the fix landed as 6c773b5, and the merge stayed blocked until a person
+  # dismissed the review by hand. AGENTS.md section 10.4 says a review bot's
+  # changes-requested alone does not block; this makes that true.
+  dismiss_stale_reviews_on_push: true
   require_code_owner_review: false
   require_last_push_approval: false
   required_review_thread_resolution: false

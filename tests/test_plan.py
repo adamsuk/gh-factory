@@ -13,6 +13,22 @@ def actions(plan):
     return {(c.item, c.action, c.target) for c in plan.changes}
 
 
+def test_stale_reviews_are_dismissed_on_push(baseline):
+    """A changes-requested review on a superseded commit must not block forever.
+
+    The baseline fixture loads the shipped baseline/ruleset.yml, so this pins the
+    value we actually apply. It was false, which deadlocked
+    adamsuk/activity-feed#20: CodeRabbit requested changes on 0972b73, the fix
+    landed as 6c773b5, and the merge stayed blocked until a person dismissed the
+    review. Required approvals are 0 by default, so nothing here ever required
+    an approval -- only a stale objection could, and indefinitely. AGENTS.md
+    section 10.4 says a review bot's changes-requested alone does not block.
+    """
+    rules = desired_ruleset(baseline, 0, [])["rules"]
+    pr = next(r for r in rules if r["type"] == "pull_request")
+    assert pr["parameters"]["dismiss_stale_reviews_on_push"] is True
+
+
 def test_fresh_repo_plans_everything_and_writes_nothing(cfg, baseline):
     client = FakeClient(repo_routes(vuln=404))
     plan = plan_repo(client, cfg, baseline, FULL)

@@ -10,6 +10,20 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+## 2026-10-28 (stale reviews)
+
+### Fixed
+
+- `baseline/ruleset.yml` sets `dismiss_stale_reviews_on_push: true`. It was
+  `false`, so a changes-requested review on a commit that was no longer the head
+  blocked a merge indefinitely, even though required approvals default to 0 and
+  nothing therefore required an approval at all. It deadlocked
+  adamsuk/activity-feed#20: CodeRabbit requested changes on `0972b73`, the fix
+  landed as `6c773b5`, and the merge stayed blocked until a person dismissed the
+  review by hand. `tests/test_plan.py` now pins the value against the shipped
+  baseline. Existing repos need `gh factory apply` to pick this up; a baseline
+  change alone does not update them.
+
 ## [0.6.0] - 2026-10-26
 
 ### 2026-10-26 (intake role)
