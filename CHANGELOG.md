@@ -10,6 +10,27 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+## 2026-10-28 (owner bypass)
+
+### Fixed
+
+- The baseline ruleset grants one narrow bypass: `actor_type: User`,
+  `actor_id: 25231418` (the account owning these repositories),
+  `bypass_mode: pull_request`. GitHub blocks a merge on any outstanding
+  changes-requested review from a write-access reviewer, independently of
+  `required_approving_review_count`, which is 0 here, and `desired_ruleset`
+  hardcoded `bypass_actors: []` while `ruleset_diff` reported any actor as
+  drift. So the owner of a single-maintainer estate could not merge his own pull
+  request over a review bot's objection, and each case had to be cleared by
+  dismissing the review by hand — adamsuk/activity-feed#20 and
+  adamsuk/gh-factory#34. `bypass_mode: pull_request` keeps direct pushes to the
+  default branch blocked.
+- `ruleset_diff` compares a repo's bypass actors against the baseline instead of
+  requiring none, so a bypass can be expressed and one added by hand is still
+  reported as drift.
+- Existing repos need `gh factory apply` to pick this up; a baseline change does
+  not update already-applied rulesets.
+
 ## [0.6.0] - 2026-10-26
 
 ### 2026-10-26 (intake role)

@@ -205,10 +205,42 @@ def desired_ruleset(baseline: Baseline, approvals: int, checks: list[str], code_
         "name": rs.get("name", "factory-main"),
         "target": "branch",
         "enforcement": rs.get("enforcement", "active"),
-        "bypass_actors": [],
+        "bypass_actors": _bypass_actors(rs),
         "conditions": {"ref_name": {"include": list(rs.get("include", ["~DEFAULT_BRANCH"])), "exclude": []}},
         "rules": rules,
     }
+
+
+def _bypass_actors(rs: dict) -> list[dict]:
+    """The baseline's bypass actors, normalised and dropping anything malformed.
+
+    An entry needs all three fields to mean anything to the API, so a partial one
+    is dropped rather than sent. Previously this was hardcoded to [], which is
+    why no repo could have a bypass actor and the owner of a single-maintainer
+    estate could not merge over a review bot's objection.
+    """
+    out: list[dict] = []
+    for actor in rs.get("bypass_actors") or []:
+        if not isinstance(actor, dict):
+            continue
+        actor_type = actor.get("actor_type")
+        actor_id = actor.get("actor_id")
+        bypass_mode = actor.get("bypass_mode")
+        if not actor_type or actor_id is None or not bypass_mode:
+            continue
+        out.append({"actor_type": str(actor_type), "actor_id": int(actor_id), "bypass_mode": str(bypass_mode)})
+    return out
+
+
+def _bypass_key(actors: Any) -> list[tuple[str, str, str]]:
+    """Order-insensitive comparison key for a bypass actor list."""
+    if not isinstance(actors, list):
+        return []
+    return sorted(
+        (str(a.get("actor_type")), str(a.get("actor_id")), str(a.get("bypass_mode")))
+        for a in actors
+        if isinstance(a, dict)
+    )
 
 
 def _subset(want: Any, have: Any) -> bool:
@@ -231,7 +263,12 @@ def ruleset_diff(existing: dict, desired: dict) -> list[str]:
     for k in ("target", "enforcement", "conditions"):
         if not _subset(desired[k], existing.get(k)):
             reasons.append(k)
-    if existing.get("bypass_actors"):
+    # Compared against the baseline rather than required to be empty. The old
+    # rule reported any bypass actor as drift, which is what made a bypass
+    # impossible to express. Drift is still reported when a repo's actors differ
+    # from the baseline's, in either direction, so one added by hand is still
+    # corrected.
+    if _bypass_key(existing.get("bypass_actors")) != _bypass_key(desired.get("bypass_actors")):
         reasons.append("bypass_actors")
     have = {r.get("type"): r for r in existing.get("rules") or []}
     want = {r["type"]: r for r in desired["rules"]}
