@@ -236,11 +236,7 @@ def _bypass_key(actors: Any) -> list[tuple[str, str, str]]:
     """Order-insensitive comparison key for a bypass actor list."""
     if not isinstance(actors, list):
         return []
-    return sorted(
-        (str(a.get("actor_type")), str(a.get("actor_id")), str(a.get("bypass_mode")))
-        for a in actors
-        if isinstance(a, dict)
-    )
+    return sorted((str(a.get("actor_type")), str(a.get("actor_id")), str(a.get("bypass_mode"))) for a in actors if isinstance(a, dict))
 
 
 def _subset(want: Any, have: Any) -> bool:
