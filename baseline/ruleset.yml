@@ -1,6 +1,37 @@
 # The repo ruleset the factory owns. Other rulesets are never touched.
 name: factory-main
 enforcement: active
+# One narrow bypass: the account that owns these repositories, and only through
+# a pull request.
+#
+# Why. GitHub blocks a merge on any outstanding changes-requested review from a
+# write-access reviewer, independently of required_approving_review_count, which
+# is 0 here. With no bypass actor the owner of a single-maintainer estate cannot
+# merge his own pull request over a review bot's objection. That happened on
+# adamsuk/activity-feed#20 and again on adamsuk/gh-factory#34, and each had to be
+# cleared by dismissing the review by hand. AGENTS.md section 10.4 says a review
+# bot's changes-requested alone does not block; this is what makes that true.
+#
+# Not dismiss_stale_reviews_on_push: that clears stale *approvals* only ("New,
+# reviewable commits pushed will dismiss previous pull request review
+# approvals"), so it never touches a changes-requested.
+#
+# actor_type User, not RepositoryRole: GitHub does not publish the role-id
+# mapping, so a role id would be a guess, and a wrong one grants bypass to the
+# wrong role. A user id names one person rather than whoever holds admin next.
+#
+# bypass_mode pull_request, not always: direct pushes to the default branch stay
+# blocked. The bypass applies only when merging a pull request.
+#
+# The cost is real. The pull request gate is advisory for this actor. In a
+# one-maintainer estate that was already true, since he can dismiss any review;
+# this stops it costing a manual step each time. A Line audit should keep
+# scoring human-approves and staged-writes partial for his own changes rather
+# than reading this as them being met.
+bypass_actors:
+  - actor_type: User
+    actor_id: 25231418  # adamsuk, the account that owns these repositories
+    bypass_mode: pull_request
 # Applies to the default branch, whatever it is called.
 include:
   - "~DEFAULT_BRANCH"

@@ -45,6 +45,71 @@ def test_fresh_repo_plans_everything_and_writes_nothing(cfg, baseline):
     assert "allow_squash_merge" not in settings  # already true
 
 
+def test_owner_bypass_reaches_the_desired_ruleset(baseline):
+    """The baseline's bypass actor must actually be applied.
+
+    desired_ruleset hardcoded "bypass_actors": [], so no repo could have one and
+    the owner of a single-maintainer estate could not merge his own pull request
+    over a review bot's objection: GitHub blocks on an outstanding
+    changes-requested regardless of required_approving_review_count, which is 0
+    here. It happened on adamsuk/activity-feed#20 and adamsuk/gh-factory#34.
+
+    The baseline fixture loads the shipped baseline/ruleset.yml, so this pins
+    what is really applied, including the narrow mode.
+    """
+    actors = desired_ruleset(baseline, 0, [])["bypass_actors"]
+    assert actors == [{"actor_type": "User", "actor_id": 25231418, "bypass_mode": "pull_request"}]
+    # pull_request, not always: direct pushes to the default branch stay blocked.
+    assert all(a["bypass_mode"] != "always" for a in actors)
+
+
+def test_malformed_bypass_actors_are_dropped(baseline):
+    """A partial entry means nothing to the API, so it is not sent."""
+    rs = dict(baseline.ruleset)
+    rs["bypass_actors"] = [
+        {"actor_type": "User", "actor_id": 1, "bypass_mode": "pull_request"},
+        {"actor_type": "User", "actor_id": 2},  # no bypass_mode
+        {"actor_id": 3, "bypass_mode": "always"},  # no actor_type
+        "nonsense",
+    ]
+    desired = desired_ruleset(baseline.__class__(**{**baseline.__dict__, "ruleset": rs}), 0, [])
+    assert desired["bypass_actors"] == [{"actor_type": "User", "actor_id": 1, "bypass_mode": "pull_request"}]
+
+
+def test_bypass_actor_drift_is_reported_both_ways(baseline):
+    """Drift is a difference from the baseline, not merely "any actor present".
+
+    The old rule reported any bypass actor as drift, which is what made a
+    bypass impossible to express. One added by hand must still be corrected.
+    """
+    desired = desired_ruleset(baseline, 0, [])
+
+    matching = {"id": 7, **desired, "source_type": "Repository"}
+    assert "bypass_actors" not in ruleset_diff(matching, desired)
+
+    stripped = {**matching, "bypass_actors": []}
+    assert "bypass_actors" in ruleset_diff(stripped, desired)
+
+    extra = {
+        **matching,
+        "bypass_actors": [
+            *desired["bypass_actors"],
+            {"actor_type": "User", "actor_id": 999, "bypass_mode": "always"},
+        ],
+    }
+    assert "bypass_actors" in ruleset_diff(extra, desired)
+
+
+def test_bypass_actor_order_does_not_count_as_drift(baseline):
+    desired = desired_ruleset(baseline, 0, [])
+    desired["bypass_actors"] = [
+        {"actor_type": "User", "actor_id": 1, "bypass_mode": "pull_request"},
+        {"actor_type": "User", "actor_id": 2, "bypass_mode": "pull_request"},
+    ]
+    reversed_order = {"id": 7, **desired, "bypass_actors": list(reversed(desired["bypass_actors"]))}
+    assert "bypass_actors" not in ruleset_diff(reversed_order, desired)
+
+
 def test_dry_run_client_refuses_writes():
     client = FakeClient({})
     with pytest.raises(ReadOnlyViolation):
