@@ -1,6 +1,6 @@
 name: Changelog
 
-# Fails a pull request that does not add a dated changelog entry (`## YYYY-MM-DD`), unless it carries the skip label.
+# Fails a pull request that does not add a dated changelog entry (`## YYYY-MM-DD`, within 3 days before to 1 day after today, Europe/London), unless it carries the skip label.
 # Generic and reusable: other repos call it with
 #   jobs:
 #     changelog:
@@ -68,27 +68,37 @@ jobs:
           HEAD_TEXT=$(gh api -H "Accept: application/vnd.github.raw" \
             "repos/$HEAD_REPO/contents/$CHANGELOG_FILE?ref=$HEAD_SHA" || true)
           python3 - <<'PY'
+          import datetime
           import os
           import re
           import sys
+          import zoneinfo
 
           # Rule chosen: the diff must add at least one line that is either a dated heading
           # (`## YYYY-MM-DD`, optionally followed by ` (topic)`), or content whose nearest
-          # preceding `## ` heading in the PR's version of the file is a dated heading.
-          # Requiring the dated heading itself in the diff would be wrong: adding a bullet to
-          # an existing dated section is legitimate and must not force a duplicate heading.
-          # The rule checks the form only, never today's date, so there is no date window;
-          # impossible dates such as 2026-13-45 are still rejected.
+          # preceding `## ` heading in the PR's version of the file is a dated heading that
+          # was already in the file. Requiring the dated heading itself in the diff would be
+          # wrong: adding a bullet to an existing dated section is legitimate and must not
+          # force a duplicate heading.
+          # A dated heading the PR adds must fall in a window around today (Europe/London):
+          # WINDOW_BEFORE days before through WINDOW_AFTER day after, inclusive. That stops a
+          # stale heading copied from an old entry satisfying the check while leaving a couple
+          # of days for a PR that takes longer to land. The window never applies to a heading
+          # the PR merely adds content under. Impossible dates such as 2026-13-45 are rejected.
           DATED = re.compile(r"^## (\d{4})-(\d{2})-(\d{2})( \(.*\))?$")
           HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)")
+          WINDOW_BEFORE = 3
+          WINDOW_AFTER = 1
 
 
-          def is_dated(line):
+          def heading_date(line):
               m = DATED.match(line)
               if not m:
-                  return False
-              _, month, day = (int(g) for g in m.groups()[:3])
-              return 1 <= month <= 12 and 1 <= day <= 31
+                  return None
+              try:
+                  return datetime.date(*(int(g) for g in m.groups()[:3]))
+              except ValueError:
+                  return None
 
 
           def added_lines(patch):
@@ -105,19 +115,32 @@ jobs:
                       n += 1
 
 
-          def has_dated_entry(patch, text):
+          def has_dated_entry(patch, text, today):
+              """Return (ok, out_of_window): out_of_window lists added dated headings outside the window."""
               lines = text.splitlines()
-              for n, line in added_lines(patch):
-                  if is_dated(line):
-                      return True
+              added = list(added_lines(patch))
+              added_numbers = {n for n, _ in added}
+              low = today - datetime.timedelta(days=WINDOW_BEFORE)
+              high = today + datetime.timedelta(days=WINDOW_AFTER)
+              out_of_window = []
+              ok = False
+              for n, line in added:
+                  d = heading_date(line)
+                  if d is not None:
+                      if low <= d <= high:
+                          ok = True
+                      else:
+                          out_of_window.append(line[3:13])
+                      continue
                   if not line.strip() or line.startswith("## "):
                       continue
-                  for prev in reversed(lines[: n - 1]):
-                      if prev.startswith("## "):
-                          if is_dated(prev):
-                              return True
+                  for i in range(n - 2, -1, -1):
+                      if lines[i].startswith("## "):
+                          # A heading added by this PR is judged on its own line above.
+                          if i + 1 not in added_numbers and heading_date(lines[i]) is not None:
+                              ok = True
                           break
-              return False
+              return ok, out_of_window
 
 
           def main():
@@ -125,11 +148,20 @@ jobs:
               if not patch:
                   print("No diff available for the changelog (too large or renamed); not checked.")
                   return 0
-              if has_dated_entry(patch, os.environ.get("HEAD_TEXT", "")):
+              today = datetime.datetime.now(zoneinfo.ZoneInfo("Europe/London")).date()
+              ok, out_of_window = has_dated_entry(patch, os.environ.get("HEAD_TEXT", ""), today)
+              if ok:
                   print("Changelog has a dated entry.")
                   return 0
               name = os.environ["CHANGELOG_FILE"]
               label = os.environ["SKIP_LABEL"]
+              if out_of_window:
+                  print(
+                      f"::error::{name} adds the dated heading {', '.join(out_of_window)}, outside the "
+                      f"allowed window: {WINDOW_BEFORE} days before through {WINDOW_AFTER} day after "
+                      f"today ({today}, Europe/London). Use today's date, or apply the '{label}' label."
+                  )
+                  return 1
               print(
                   f"::error::{name} changed, but the PR adds no dated entry. Expected a heading "
                   "`## YYYY-MM-DD` (optionally `## YYYY-MM-DD (topic)`, Europe/London date) "

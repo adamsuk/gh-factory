@@ -1,8 +1,10 @@
 """Tests for the dated-entry check in .github/workflows/changelog.yml."""
 
+import datetime
 import os
 import stat
 import subprocess
+import zoneinfo
 
 import pytest
 
@@ -21,6 +23,18 @@ case "$*" in
   *contents/*) printf '%s' "$FAKE_HEAD" ;;
 esac
 """
+
+
+def _today():
+    return datetime.datetime.now(zoneinfo.ZoneInfo("Europe/London")).date()
+
+
+def _added_heading(offset):
+    """Return (patch, head) for a PR adding a dated heading `offset` days from today."""
+    day = (_today() + datetime.timedelta(days=offset)).isoformat()
+    head = f"# Changelog\n\n## [Unreleased]\n\n## {day} (y)\n\n- thing\n\n## 2026-10-29 (x)\n"
+    patch = f"@@ -3,2 +3,6 @@\n ## [Unreleased]\n \n+## {day} (y)\n+\n+- thing\n+\n"
+    return patch, head
 
 
 def _run_step():
@@ -67,8 +81,7 @@ def test_entry_under_unreleased_only_fails(tmp_path):
 
 
 def test_new_dated_heading_passes(tmp_path):
-    head = "# Changelog\n\n## [Unreleased]\n\n## 2026-11-02 (y)\n\n- thing\n\n## 2026-10-29 (x)\n"
-    patch = "@@ -3,2 +3,6 @@\n ## [Unreleased]\n \n+## 2026-11-02 (y)\n+\n+- thing\n+\n"
+    patch, head = _added_heading(0)
     assert _check(tmp_path, patch, head).returncode == 0
 
 
@@ -98,3 +111,30 @@ def test_skip_author(tmp_path, author):
     env = {**os.environ, "PR": "1", "SKIP_AUTHORS": author, "AUTHOR": author}
     r = subprocess.run(["bash", "-c", _run_step()], env=env, capture_output=True, text=True)
     assert r.returncode == 0
+
+
+@pytest.mark.parametrize("offset", [-3, -1, 0, 1])
+def test_added_heading_inside_window_passes(tmp_path, offset):
+    patch, head = _added_heading(offset)
+    r = _check(tmp_path, patch, head)
+    assert r.returncode == 0, r.stdout
+
+
+@pytest.mark.parametrize("offset", [-4, 2])
+def test_added_heading_outside_window_fails(tmp_path, offset):
+    patch, head = _added_heading(offset)
+    r = _check(tmp_path, patch, head)
+    assert r.returncode == 1
+    assert "3 days before through 1 day after" in r.stdout
+
+
+def test_old_existing_heading_still_accepts_additions(tmp_path):
+    head = "# Changelog\n\n## 2020-01-01 (old)\n\n- old\n- another\n"
+    patch = "@@ -4,2 +4,3 @@\n \n - old\n+- another\n"
+    r = _check(tmp_path, patch, head)
+    assert r.returncode == 0, r.stdout
+
+
+def test_content_under_added_stale_heading_fails(tmp_path):
+    patch, head = _added_heading(-10)
+    assert _check(tmp_path, patch, head).returncode == 1

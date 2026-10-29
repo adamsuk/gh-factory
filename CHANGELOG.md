@@ -19,7 +19,10 @@ that PR tags and publishes the release.
   (optionally `## YYYY-MM-DD (topic)`), or content whose nearest preceding `##`
   heading is dated; an entry under `## [Unreleased]` alone fails, with a message
   naming the expected form. Adding a bullet to an existing dated section passes.
-  The rule checks the form, not today's date. Callers pin this workflow by SHA, so
+  A dated heading the PR adds must fall within 3 days before through 1 day after
+  today (Europe/London, inclusive), so a stale heading copied from an old entry
+  fails with a message naming the window. The window does not apply to a bullet
+  added under a dated heading already in the file. Callers pin this workflow by SHA, so
   each enrolled repo must bump its pin to pick this up.
 
 ## 2026-10-28 (owner bypass)
