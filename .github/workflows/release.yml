@@ -10,6 +10,8 @@ name: Release
 #       permissions:
 #         contents: write
 #         pull-requests: write
+#         id-token: write
+#         attestations: write
 #       uses: adamsuk/gh-factory/.github/workflows/release.yml@<commit-sha> # vX.Y.Z
 #       with:
 #         version_files: pyproject.toml src/pkg/__init__.py
@@ -27,6 +29,10 @@ name: Release
 # GitHub Actions as a bypass actor would weaken them. GitHub does not start workflows for a PR the
 # GITHUB_TOKEN opens, so close and reopen the release PR (or push to it) to run its checks.
 # The repo setting "Allow GitHub Actions to create and approve pull requests" must be on.
+# 3. Each release also gets a source archive of the released commit, `<repo>-<tag>-source.tar.gz`,
+#    with a build provenance attestation. A called workflow can only keep or reduce the permissions
+#    its caller grants, never raise them, so the calling job must itself grant `id-token: write` and
+#    `attestations: write` (as in the example above), or the attestation step fails.
 on:
   workflow_call:
     inputs:
@@ -55,6 +61,11 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+      attestations: write
     concurrency:
       group: release-${{ github.repository }}
       cancel-in-progress: false
@@ -63,6 +74,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Release, or open or refresh the release PR
+        id: release
         env:
           GH_TOKEN: ${{ github.token }}
           CHANGELOG_FILE: ${{ inputs.changelog_file }}
@@ -209,6 +221,9 @@ jobs:
                       f.write(notes + "\n")
                   run("gh", "release", "create", tag, "--target", sha, "--title", tag, "--notes-file", f.name)
                   print(f"Released {tag}.")
+                  if env.get("GITHUB_OUTPUT"):
+                      with open(env["GITHUB_OUTPUT"], "a") as out:
+                          out.write(f"tag={tag}\n")
                   return
 
               tags = [t for t in run("git", "tag", "--list", f"{prefix}*", "--sort=-v:refname").splitlines()
@@ -263,3 +278,23 @@ jobs:
           if __name__ == "__main__":
               main()
           PY
+      # Only when the step above created a release: attach a source archive of the released commit
+      # and attest it. Nothing here depends on what the calling repo builds or deploys.
+      - name: Archive the released commit
+        id: archive
+        if: steps.release.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          # Same commit, same bytes: git archive stamps entries with the commit time and the
+          # built-in gzip writes no name or timestamp.
+          path="${RUNNER_TEMP}/${GITHUB_REPOSITORY#*/}-${TAG}-source.tar.gz"
+          git archive --format=tar.gz --prefix="${GITHUB_REPOSITORY#*/}-${TAG}/" -o "$path" HEAD
+          gh release upload "$TAG" "$path"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+      - name: Attest the source archive
+        if: steps.release.outputs.tag != ''
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ steps.archive.outputs.path }}

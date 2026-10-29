@@ -267,3 +267,16 @@ def test_changelog_release_sections_use_house_levels():
     assert entries
     for head, subs in entries:
         assert not subs or min(subs) == 4, head
+
+
+def test_release_attests_source_archive():
+    wf = yaml.safe_load(WORKFLOW.read_text())
+    job = wf["jobs"]["release"]
+    assert job["permissions"]["id-token"] == "write"
+    assert job["permissions"]["attestations"] == "write"
+    steps = job["steps"]
+    attest = next(s for s in steps if s.get("uses", "").startswith("actions/attest-build-provenance@"))
+    assert len(attest["uses"].split("@")[1].split()[0]) == 40
+    assert attest["if"] == "steps.release.outputs.tag != ''"
+    assert "steps.archive.outputs.path" in attest["with"]["subject-path"]
+    assert any("gh release upload" in s.get("run", "") for s in steps)

@@ -10,6 +10,15 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+## 2026-10-29 (release provenance)
+
+### Added
+
+- `release.yml` now attaches `<repo>-<tag>-source.tar.gz`, a `git archive` of the released commit,
+  to each GitHub release and attests it with `actions/attest-build-provenance` (pinned to v4.2.2,
+  `4d101475d8b20a2381f78447822ac1eab6504dd8`). Callers must grant `id-token: write` and
+  `attestations: write` on the calling job. README explains `gh attestation verify`.
+
 ## 2026-10-29 (egress audit)
 
 ### Added

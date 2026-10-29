@@ -29,6 +29,17 @@ Use the latest tag from the [Releases](https://github.com/adamsuk/gh-factory/rel
 page for `vX.Y.Z`. Unpinned installs upgrade with `gh extension upgrade factory`. To move a
 pinned install to a newer release, reinstall it with the new `--pin` tag.
 
+To check that a release file really came from this repo's release workflow, download the
+`gh-factory-vX.Y.Z-source.tar.gz` asset from the release and run:
+
+```sh
+gh attestation verify gh-factory-vX.Y.Z-source.tar.gz --repo adamsuk/gh-factory
+```
+
+It passes only if GitHub holds a signed record that this repo's workflow built that exact file
+(matched by its SHA-256 digest); a changed or foreign file fails. `gh attestation verify` also
+accepts an `oci://` image reference, but releases here attach only the archive.
+
 ## Quickstart
 
 ```sh
@@ -320,6 +331,13 @@ reusable [`release.yml`](.github/workflows/release.yml) on every push to main.
   the release PR to run its checks, then squash-merge it. That merge tags the commit and
   publishes the GitHub release, with that version's changelog section as the notes.
 
+Every release also carries `<repo>-<tag>-source.tar.gz`, an archive of the released commit built
+with `git archive`, plus a signed [build provenance attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds)
+for it. It says which repo, workflow and commit produced that exact file, and covers only the
+release commit, not whatever the repo separately builds or deploys. A called workflow can only keep
+or lower the permissions its caller grants, so the calling job must grant `id-token: write` and
+`attestations: write` as well (see the example below), or the attestation step fails.
+
 Why a release PR and not a direct commit: the `factory-main` ruleset blocks pushes to main, and
 letting GitHub Actions bypass it would weaken it for every workflow (gh-factory also reports a
 bypass actor as drift). Only the default `GITHUB_TOKEN` is used, with no PAT or GitHub App. The
@@ -339,6 +357,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      id-token: write       # needed for the provenance attestation
+      attestations: write   # likewise
     uses: adamsuk/gh-factory/.github/workflows/release.yml@<commit-sha> # vX.Y.Z
     with:
       version_files: pyproject.toml   # optional; also changelog_file, tag_prefix, release_branch, initial_version
