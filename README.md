@@ -343,11 +343,18 @@ with `git archive`, plus a signed [build provenance attestation](https://docs.gi
 for it. It says which repo, workflow and commit produced that exact file, and covers only the
 release commit, not whatever the repo separately builds or deploys. A called workflow can only keep
 or lower the permissions its caller grants, so the calling job must grant `id-token: write` and
-`attestations: write` as well (see the example below). Artifact attestations also need a GitHub
-plan that supports them (public repos on any plan; private repos need GitHub Enterprise Cloud;
-check GitHub's docs). The attest step is `continue-on-error`, so a caller missing the permissions
-or the plan still gets its release and archive, but no attestation: the step shows a warning, not
-a red run. A rerun after a partial failure uploads the archive again (`--clobber`) and re-attests.
+`attestations: write` as well (see the example below). GitHub's docs only say permissions "can be
+only downgraded (not elevated)"; they don't say what happens when a caller grants too little.
+Community reports describe the whole run being refused at start, which would lose the release
+itself, not just the attestation -- this is unverified, so treat the permissions as required and a
+new caller's first release as the real test. Artifact attestations also need a GitHub plan that
+supports them (public repos on any plan; private repos need GitHub Enterprise Cloud per GitHub's
+pricing page -- confirm against current docs before relying on it). The release is created as a
+draft, the archive is uploaded to it, and only then is it published, so this works with immutable
+releases too. The attest step is `continue-on-error`, so once the permissions/plan question is
+settled for a caller, one still missing them keeps its release and archive but shows a warning
+instead of a red run. A rerun after a partial failure resumes the same draft and re-uploads
+(`--clobber`); a tag that already exists on a different commit is left alone as unrelated.
 
 Why a release PR and not a direct commit: the `factory-main` ruleset blocks pushes to main, and
 letting GitHub Actions bypass it would weaken it for every workflow (gh-factory also reports a
