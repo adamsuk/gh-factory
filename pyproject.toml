@@ -34,6 +34,6 @@ extend-exclude = ["src/factory/_vendor"]
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.mutmut]
-paths_to_mutate = ["src/factory/"]
-tests_dir = ["tests/"]
+source_paths = ["src/factory/"]
+pytest_add_cli_args_test_selection = ["tests/"]
 do_not_mutate = ["src/factory/_vendor/*"]
