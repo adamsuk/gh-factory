@@ -1,0 +1,39 @@
+name: Mutation testing
+
+# Report-only. This job is not a required check and cannot fail: see `continue-on-error` below and
+# `.github/scripts/mutation_report.py`, which always exits 0. The result is written to the run's
+# job summary (visible on the Actions run page), because a summary needs no write permissions,
+# unlike a PR comment, and so also works on fork PRs.
+on:
+  pull_request:
+    paths:
+      - "src/**/*.py"
+
+permissions:
+  contents: read
+
+jobs:
+  mutmut:
+    name: Mutation testing (report only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 25
+    steps:
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - run: pip install -e '.[dev,mutation]'
+        continue-on-error: true
+      - name: Mutate the Python files this PR changes
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git diff --name-only --diff-filter=d "origin/${BASE_REF}...HEAD" -- 'src/**/*.py' \
+            | python .github/scripts/mutation_report.py || true
