@@ -29,6 +29,30 @@ that PR tags and publishes the release.
 - A tag with a slash (`tag_prefix: release/v`) no longer breaks the archive path: `/` becomes `-`
   in the file and directory name only; the real tag is used for the upload.
 
+## 2026-10-29 (dated changelog check)
+
+### Fixed
+
+- The reusable `changelog.yml` check now verifies the form of the entry, not just
+  that `CHANGELOG.md` was touched. The diff must add a `## YYYY-MM-DD` heading
+  (optionally `## YYYY-MM-DD (topic)`), or content whose nearest preceding `##`
+  heading is dated; an entry under `## [Unreleased]` alone fails, with a message
+  naming the expected form. Adding a bullet to an existing dated section passes.
+  A dated heading the PR adds must fall within 3 days before through 1 day after
+  today (Europe/London, inclusive), so a stale heading copied from an old entry
+  fails with a message naming the window. The window does not apply to a bullet
+  added under a dated heading already in the file. Callers pin this workflow by SHA, so
+  each enrolled repo must bump its pin to pick this up.
+
+## 2026-10-29 (mutation testing)
+
+### Added
+
+- Report-only mutation testing: `.github/workflows/mutation.yml` runs `mutmut` (pinned `==3.8.1` in
+  the new `mutation` extra in `pyproject.toml`) on the Python files under `src/factory` that a PR
+  changes, and writes surviving mutants per file to the run's job summary. The job is
+  `continue-on-error`, has a 25 minute timeout, and its script always exits 0, so it cannot block merge.
+
 ## 2026-10-29 (egress audit)
 
 ### Added

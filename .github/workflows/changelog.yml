@@ -1,6 +1,6 @@
 name: Changelog
 
-# Fails a pull request that does not update the changelog, unless it carries the skip label.
+# Fails a pull request that does not add a dated changelog entry (`## YYYY-MM-DD`, within 3 days before to 1 day after today, Europe/London), unless it carries the skip label.
 # Generic and reusable: other repos call it with
 #   jobs:
 #     changelog:
@@ -40,6 +40,8 @@ jobs:
           SKIP_LABEL: ${{ inputs.skip_label || 'skip-changelog' }}
           SKIP_AUTHORS: ${{ inputs.skip_authors || 'dependabot[bot]' }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if [ -z "$PR" ]; then
             echo "Not a pull request; nothing to check."
@@ -55,9 +57,120 @@ jobs:
             echo "Skipped: '$SKIP_LABEL' label is set."
             exit 0
           fi
-          if gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename' | grep -qxF "$CHANGELOG_FILE"; then
-            echo "$CHANGELOG_FILE is updated."
-          else
+          files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" \
+            --jq ".[] | select(.filename == env.CHANGELOG_FILE) | .patch")
+          if ! gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename' | grep -qxF "$CHANGELOG_FILE"; then
             echo "::error::Add an entry to $CHANGELOG_FILE, or apply the '$SKIP_LABEL' label."
             exit 1
           fi
+          export PATCH="$files"
+          export HEAD_TEXT
+          HEAD_TEXT=$(gh api -H "Accept: application/vnd.github.raw" \
+            "repos/$HEAD_REPO/contents/$CHANGELOG_FILE?ref=$HEAD_SHA" || true)
+          python3 - <<'PY'
+          import datetime
+          import os
+          import re
+          import sys
+          import zoneinfo
+
+          # Rule chosen: the diff must add at least one line that is either a dated heading
+          # (`## YYYY-MM-DD`, optionally followed by ` (topic)`), or content whose nearest
+          # preceding `## ` heading in the PR's version of the file is a dated heading that
+          # was already in the file. Requiring the dated heading itself in the diff would be
+          # wrong: adding a bullet to an existing dated section is legitimate and must not
+          # force a duplicate heading.
+          # A dated heading the PR adds must fall in a window around today (Europe/London):
+          # WINDOW_BEFORE days before through WINDOW_AFTER day after, inclusive. That stops a
+          # stale heading copied from an old entry satisfying the check while leaving a couple
+          # of days for a PR that takes longer to land. The window never applies to a heading
+          # the PR merely adds content under. Impossible dates such as 2026-13-45 are rejected.
+          DATED = re.compile(r"^## (\d{4})-(\d{2})-(\d{2})( \(.*\))?$")
+          HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)")
+          WINDOW_BEFORE = 3
+          WINDOW_AFTER = 1
+
+
+          def heading_date(line):
+              m = DATED.match(line)
+              if not m:
+                  return None
+              try:
+                  return datetime.date(*(int(g) for g in m.groups()[:3]))
+              except ValueError:
+                  return None
+
+
+          def added_lines(patch):
+              """Yield (line number in the new file, text) for each added line."""
+              n = 0
+              for raw in patch.splitlines():
+                  m = HUNK.match(raw)
+                  if m:
+                      n = int(m.group(1))
+                  elif raw.startswith("+"):
+                      yield n, raw[1:]
+                      n += 1
+                  elif not raw.startswith("-") and not raw.startswith("\\"):
+                      n += 1
+
+
+          def has_dated_entry(patch, text, today):
+              """Return (ok, out_of_window): out_of_window lists added dated headings outside the window."""
+              lines = text.splitlines()
+              added = list(added_lines(patch))
+              added_numbers = {n for n, _ in added}
+              low = today - datetime.timedelta(days=WINDOW_BEFORE)
+              high = today + datetime.timedelta(days=WINDOW_AFTER)
+              out_of_window = []
+              ok = False
+              for n, line in added:
+                  d = heading_date(line)
+                  if d is not None:
+                      if low <= d <= high:
+                          ok = True
+                      else:
+                          out_of_window.append(line[3:13])
+                      continue
+                  if not line.strip() or line.startswith("## "):
+                      continue
+                  for i in range(n - 2, -1, -1):
+                      if lines[i].startswith("## "):
+                          # A heading added by this PR is judged on its own line above.
+                          if i + 1 not in added_numbers and heading_date(lines[i]) is not None:
+                              ok = True
+                          break
+              return ok, out_of_window
+
+
+          def main():
+              patch = os.environ.get("PATCH", "")
+              if not patch:
+                  print("No diff available for the changelog (too large or renamed); not checked.")
+                  return 0
+              today = datetime.datetime.now(zoneinfo.ZoneInfo("Europe/London")).date()
+              ok, out_of_window = has_dated_entry(patch, os.environ.get("HEAD_TEXT", ""), today)
+              if ok:
+                  print("Changelog has a dated entry.")
+                  return 0
+              name = os.environ["CHANGELOG_FILE"]
+              label = os.environ["SKIP_LABEL"]
+              if out_of_window:
+                  print(
+                      f"::error::{name} adds the dated heading {', '.join(out_of_window)}, outside the "
+                      f"allowed window: {WINDOW_BEFORE} days before through {WINDOW_AFTER} day after "
+                      f"today ({today}, Europe/London). Use today's date, or apply the '{label}' label."
+                  )
+                  return 1
+              print(
+                  f"::error::{name} changed, but the PR adds no dated entry. Expected a heading "
+                  "`## YYYY-MM-DD` (optionally `## YYYY-MM-DD (topic)`, Europe/London date) "
+                  "with the entry under it, or a new line under an existing dated heading; "
+                  f"`## [Unreleased]` alone does not count. Or apply the '{label}' label."
+              )
+              return 1
+
+
+          if __name__ == "__main__":
+              sys.exit(main())
+          PY
