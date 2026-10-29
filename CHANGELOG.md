@@ -25,6 +25,15 @@ that PR tags and publishes the release.
   added under a dated heading already in the file. Callers pin this workflow by SHA, so
   each enrolled repo must bump its pin to pick this up.
 
+## 2026-10-29 (mutation testing)
+
+### Added
+
+- Report-only mutation testing: `.github/workflows/mutation.yml` runs `mutmut` (pinned `==3.8.1` in
+  the new `mutation` extra in `pyproject.toml`) on the Python files under `src/factory` that a PR
+  changes, and writes surviving mutants per file to the run's job summary. The job is
+  `continue-on-error`, has a 25 minute timeout, and its script always exits 0, so it cannot block merge.
+
 ## 2026-10-29 (egress audit)
 
 ### Added
