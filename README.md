@@ -29,6 +29,24 @@ Use the latest tag from the [Releases](https://github.com/adamsuk/gh-factory/rel
 page for `vX.Y.Z`. Unpinned installs upgrade with `gh extension upgrade factory`. To move a
 pinned install to a newer release, reinstall it with the new `--pin` tag.
 
+To check that a release file really came from this repo's release workflow, download the
+`gh-factory-vX.Y.Z-source.tar.gz` asset from the release and run:
+
+```sh
+gh attestation verify gh-factory-vX.Y.Z-source.tar.gz \
+  --repo adamsuk/gh-factory \
+  --signer-workflow adamsuk/gh-factory/.github/workflows/release.yml \
+  --source-digest "$(git rev-parse vX.Y.Z^{commit})"
+```
+
+`--signer-workflow` pins the attestation to the release workflow (any other workflow in the repo
+is rejected) and `--source-digest` pins it to the commit the tag points at, so run the `git
+rev-parse` in a clone of the repo.
+
+It passes only if GitHub holds a signed record that this repo's workflow built that exact file
+(matched by its SHA-256 digest); a changed or foreign file fails. `gh attestation verify` also
+accepts an `oci://` image reference, but releases here attach only the archive.
+
 ## Quickstart
 
 ```sh
@@ -320,6 +338,26 @@ reusable [`release.yml`](.github/workflows/release.yml) on every push to main.
   the release PR to run its checks, then squash-merge it. That merge tags the commit and
   publishes the GitHub release, with that version's changelog section as the notes.
 
+Every release also carries `<repo>-<tag>-source.tar.gz`, an archive of the released commit built
+with `git archive`, plus a signed [build provenance attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds)
+for it. It says which repo, workflow and commit produced that exact file, and covers only the
+release commit, not whatever the repo separately builds or deploys. A called workflow can only keep
+or lower the permissions its caller grants, so the calling job must grant `id-token: write` and
+`attestations: write` as well (see the example below). GitHub's docs only say permissions "can be
+only downgraded (not elevated)"; they don't say what happens when a caller grants too little.
+Community reports describe the whole run being refused at start, which would lose the release
+itself, not just the attestation -- this is unverified, so treat the permissions as required and a
+new caller's first release as the real test. Artifact attestations also need a GitHub plan that
+supports them (public repos on any plan; private repos need GitHub Enterprise Cloud per GitHub's
+pricing page -- confirm against current docs before relying on it). The release is created as a
+draft, the archive is uploaded to it, and only then is it published, so this works with immutable
+releases too. The attest step is `continue-on-error`, so once the permissions/plan question is
+settled for a caller, one still missing them keeps its release and archive but shows a warning
+instead of a red run. **Publishing is not gated on attestation succeeding** -- this is deliberate:
+every caller still gets its release and archive even without a verified attestation, rather than no
+release at all. A rerun after a partial failure resumes the same draft and re-uploads (`--clobber`);
+a tag that already exists on a different commit is left alone as unrelated.
+
 Why a release PR and not a direct commit: the `factory-main` ruleset blocks pushes to main, and
 letting GitHub Actions bypass it would weaken it for every workflow (gh-factory also reports a
 bypass actor as drift). Only the default `GITHUB_TOKEN` is used, with no PAT or GitHub App. The
@@ -339,6 +377,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      id-token: write       # needed for the provenance attestation
+      attestations: write   # likewise
     uses: adamsuk/gh-factory/.github/workflows/release.yml@<commit-sha> # vX.Y.Z
     with:
       version_files: pyproject.toml   # optional; also changelog_file, tag_prefix, release_branch, initial_version

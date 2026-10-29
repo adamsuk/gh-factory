@@ -10,6 +10,30 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+## 2026-10-29 (release provenance)
+
+### Added
+
+- `release.yml` now creates each release as a draft, attaches
+  `<repo>-<tag>-source.tar.gz` (a `git archive` of the released commit, with a slash in the tag
+  flattened to `-` in the file and directory name only) to it, attests the archive with
+  `actions/attest-build-provenance` (pinned to v4.2.2, `4d101475d8b20a2381f78447822ac1eab6504dd8`),
+  then publishes the release only after the archive upload succeeds -- so this works with
+  immutable releases too. Callers must grant `id-token: write` and `attestations: write` on the
+  calling job (unverified: whether a caller missing these loses only the attestation, or the whole
+  run) and a GitHub plan that supports artifact attestations. README explains
+  `gh attestation verify`, pinned with `--signer-workflow` and `--source-digest`.
+- The attest step is `continue-on-error`, so once the permissions/plan question above is settled
+  for a caller, one still missing them keeps its release and archive and only loses the
+  attestation (a warning, not a red run).
+
+### Fixed
+
+- A rerun after a partial failure resumes the same draft release (re-pointed at `HEAD`) and
+  re-uploads the archive (`--clobber`), rather than treating the existing tag as fully done.
+- A tag that already exists but points at a different commit than `HEAD` is left alone as
+  unrelated, not resumed -- it is not this run's release to finish.
+
 ## 2026-10-29 (dated changelog check)
 
 ### Fixed
