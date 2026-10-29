@@ -23,21 +23,32 @@ name: Release
 #    `chore(release): vX.Y.Z`. That PR moves everything under `## [Unreleased]` in the changelog
 #    under a new `## [X.Y.Z] - YYYY-MM-DD` heading (each entry's headings drop one level) and bumps
 #    the version string in `version_files`.
-# 2. When that release PR is merged, it tags the merge commit and publishes a GitHub release whose
-#    notes are that version's changelog section.
+# 2. When that release PR is merged, it drafts a GitHub release for the merge commit (notes are
+#    that version's changelog section), uploads a source archive of that commit (step 3), then
+#    publishes the release, which is what creates the tag's public visibility. Publishing last
+#    keeps this working for a caller with immutable releases enabled, which refuses new assets on
+#    an already-published release. If a run dies partway, rerunning it resumes the same draft by
+#    re-pointing it at HEAD; a release already published is left alone, and a tag pointing at a
+#    different commit than HEAD is treated as unrelated, not something to resume.
 # The release commit goes through a PR because rulesets block direct pushes to main, and adding
 # GitHub Actions as a bypass actor would weaken them. GitHub does not start workflows for a PR the
 # GITHUB_TOKEN opens, so close and reopen the release PR (or push to it) to run its checks.
 # The repo setting "Allow GitHub Actions to create and approve pull requests" must be on.
-# 3. Each release also gets a source archive of the released commit, `<repo>-<tag>-source.tar.gz`,
-#    with a build provenance attestation. A called workflow can only keep or reduce the permissions
-#    its caller grants, never raise them, so the calling job must itself grant `id-token: write` and
-#    `attestations: write` (as in the example above). Artifact attestations also need a GitHub plan
-#    that supports them (public repos on any plan; private repos need GitHub Enterprise Cloud, see
-#    GitHub's "Using artifact attestations" docs). The attest step has `continue-on-error: true`, so
-#    a caller missing the permissions or the plan still gets its release and archive, but the
-#    attestation is silently skipped (look for the warning on that step) rather than turning the
-#    run red after the release has already shipped. The archive upload is not best effort.
+# 3. The source archive, `<repo>-<tag>-source.tar.gz` (slashes in the tag flattened to `-` for the
+#    file and directory names only; the real tag is still used for the release itself), gets a
+#    build provenance attestation. A called workflow can only keep or reduce the permissions its
+#    caller grants, never raise them, so the calling job must itself grant `id-token: write` and
+#    `attestations: write` (as in the example above). GitHub's docs only say permissions "can be
+#    only downgraded (not elevated)"; they do not say what happens when a caller grants too little.
+#    Community reports describe the whole run being refused at start, which would lose the release
+#    itself, not just the attestation -- unverified here. Artifact attestations also need a GitHub
+#    plan that supports them (public repos on any plan; private repos need GitHub Enterprise Cloud
+#    per GitHub's pricing page -- confirm against current docs before relying on it). Treat both the
+#    permissions and the plan as required, and a new caller's first release as the real test. The
+#    attest step has `continue-on-error: true`: once the permissions/plan question is settled for a
+#    given caller, a caller that still lacks them gets its release and archive, with only the
+#    attestation silently skipped (a warning on that step, not a red run). The archive upload itself
+#    is not best effort.
 on:
   workflow_call:
     inputs:
@@ -215,22 +226,40 @@ jobs:
               if m:
                   version = m.group(1)
                   tag = prefix + version
+                  # A draft has no tag yet (GitHub creates it on publish), so the release itself --
+                  # not the tag -- says how far a previous run got: "true" draft, "false" published,
+                  # "" neither (nothing created yet, or no release named this tag at all).
+                  state = run("gh", "release", "view", tag, "--json", "isDraft", "--jq", ".isDraft", check=False)
                   if run("git", "tag", "--list", tag):
-                      print(f"{tag} already exists; nothing to create.")
-                      # Still expose the tag so a rerun after a partial failure (release made, archive
-                      # or attestation not) can redo those steps; both are safe to repeat.
-                      if env.get("GITHUB_OUTPUT"):
-                          with open(env["GITHUB_OUTPUT"], "a") as out:
-                              out.write(f"tag={tag}\n")
+                      # A tag can only mean a prior run reached this branch. If it points somewhere
+                      # other than HEAD, this is not that run (e.g. a later commit happens to repeat
+                      # the same release subject) -- a true no-op, not a rerun to resume.
+                      if run("git", "rev-parse", f"{tag}^{{commit}}") != sha:
+                          print(f"{tag} already exists on another commit; nothing to do.")
+                          return
+                      if state == "false":
+                          print(f"{tag} is already released; nothing to do.")
+                          return
+                  elif state == "false":
+                      print(f"{tag} is already released; nothing to do.")
                       return
-                  with open(changelog) as f:
-                      notes = section(f.read(), version)
-                  if notes is None:
-                      raise SystemExit(f"::error::{changelog} has no '## [{version}]' section.")
-                  with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as f:
-                      f.write(notes + "\n")
-                  run("gh", "release", "create", tag, "--target", sha, "--title", tag, "--notes-file", f.name)
-                  print(f"Released {tag}.")
+                  if state == "true":
+                      # A previous run made the draft but did not finish: resume it at this commit.
+                      run("gh", "release", "edit", tag, "--target", sha)
+                      print(f"Resuming draft release {tag}.")
+                  else:
+                      with open(changelog) as f:
+                          notes = section(f.read(), version)
+                      if notes is None:
+                          raise SystemExit(f"::error::{changelog} has no '## [{version}]' section.")
+                      with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as f:
+                          f.write(notes + "\n")
+                      # Draft, not published: the source archive can be uploaded first (immutable
+                      # releases accept no new assets once published). The publish step below
+                      # flips it once the upload has actually succeeded.
+                      run("gh", "release", "create", tag, "--draft", "--target", sha, "--title", tag,
+                          "--notes-file", f.name)
+                      print(f"Drafted {tag}.")
                   if env.get("GITHUB_OUTPUT"):
                       with open(env["GITHUB_OUTPUT"], "a") as out:
                           out.write(f"tag={tag}\n")
@@ -315,3 +344,11 @@ jobs:
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: ${{ steps.archive.outputs.path }}
+      # Last, and only if the upload above actually succeeded: publishing makes the draft (and its
+      # tag) final. Immutable-release callers accept the asset because it was uploaded pre-publish.
+      - name: Publish the release
+        if: steps.release.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: gh release edit "$TAG" --draft=false

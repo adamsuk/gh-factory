@@ -132,7 +132,8 @@ def test_end_to_end_release_pr_then_release(rel, tmp_path, monkeypatch):
     bindir = tmp_path / "bin"
     bindir.mkdir()
     gh = bindir / "gh"
-    gh.write_text(f'#!/bin/sh\nprintf "%s\\n" "$*" >> {calls}\n')
+    state = tmp_path / "release-state"  # what `gh release view --json isDraft` prints; absent = no release
+    gh.write_text(f'#!/bin/sh\nprintf "%s\\n" "$*" >> {calls}\ncase "$1 $2" in "release view") cat {state} 2>/dev/null || exit 1;; esac\n')
     gh.chmod(0o755)
     monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.chdir(work)
@@ -161,8 +162,22 @@ def test_end_to_end_release_pr_then_release(rel, tmp_path, monkeypatch):
     calls.write_text("")
     rel["main"]()
     log = calls.read_text()
-    assert log.startswith("release create v0.1.1 --target ")
+    assert "release create v0.1.1 --draft --target " in log
     assert "--title v0.1.1 --notes-file" in log
+    assert "release edit" not in log  # publishing is the workflow's last step, after the upload
+
+    # Rerun after the draft was made but the run died: resume the draft, do not create a second one.
+    state.write_text("true")
+    calls.write_text("")
+    rel["main"]()
+    log = calls.read_text()
+    assert "release create" not in log and "release edit v0.1.1 --target " in log
+
+    # Already published: nothing to redo.
+    state.write_text("false")
+    calls.write_text("")
+    rel["main"]()
+    assert "release create" not in calls.read_text() and "release edit" not in calls.read_text()
 
     # Nothing releasable since the tag: no PR, no release.
     _git(work, "tag", "v0.1.1")
@@ -282,16 +297,70 @@ def test_release_attests_source_archive():
     assert any("gh release upload" in s.get("run", "") for s in steps)
 
 
-def test_release_archive_is_rerun_safe_and_slash_safe():
-    text = WORKFLOW.read_text()
-    wf = yaml.safe_load(text)
+def _release_commit_repo(rel, tmp_path, monkeypatch, state_text):
+    work, out, calls = tmp_path / "work", tmp_path / "out", tmp_path / "gh-calls"
+    _git(tmp_path, "init", "-q", "-b", "main", str(work))
+    for k, v in {"user.name": "t", "user.email": "t@example.com"}.items():
+        _git(work, "config", k, v)
+    (work / "CHANGELOG.md").write_text("# Changelog\n\n## [Unreleased]\n\n## [0.2.0] - 2026-10-26\n\n- New.\n")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-qm", "chore(release): v0.2.0 (#4)")
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    gh = bindir / "gh"
+    gh.write_text(f'#!/bin/sh\nprintf "%s\\n" "$*" >> {calls}\n[ "$2" = view ] && printf "%s" "{state_text}"\nexit 0\n')
+    gh.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.chdir(work)
+    for k, v in {
+        "CHANGELOG_FILE": "CHANGELOG.md",
+        "VERSION_FILES": "",
+        "TAG_PREFIX": "v",
+        "RELEASE_BRANCH": "release/next",
+        "INITIAL_VERSION": "0.0.0",
+        "BASE_BRANCH": "main",
+        "GITHUB_OUTPUT": str(out),
+    }.items():
+        monkeypatch.setenv(k, v)
+    return work, out, calls
+
+
+def test_existing_tag_on_another_commit_is_a_noop(rel, tmp_path, monkeypatch):
+    work, out, calls = _release_commit_repo(rel, tmp_path, monkeypatch, "")
+    _git(work, "tag", "v0.2.0")
+    _git(work, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.2.0 (#9)")
+    rel["main"]()
+    assert not out.exists()
+    assert "release create" not in calls.read_text()
+
+
+def test_existing_tag_on_head_with_draft_resumes(rel, tmp_path, monkeypatch):
+    work, out, calls = _release_commit_repo(rel, tmp_path, monkeypatch, "true")
+    _git(work, "tag", "v0.2.0")
+    rel["main"]()
+    assert out.read_text() == "tag=v0.2.0\n"
+    assert "release create" not in calls.read_text()
+
+
+def test_published_release_is_not_redone(rel, tmp_path, monkeypatch):
+    work, out, calls = _release_commit_repo(rel, tmp_path, monkeypatch, "false")
+    _git(work, "tag", "v0.2.0")
+    rel["main"]()
+    assert not out.exists()
+
+
+def test_release_is_drafted_then_published_after_upload():
+    wf = yaml.safe_load(WORKFLOW.read_text())
     steps = wf["jobs"]["release"]["steps"]
-    archive = next(s for s in steps if s.get("id") == "archive")["run"]
-    assert "--clobber" in archive
-    assert "${TAG//\\//-}" in archive
-    assert 'gh release upload "$TAG"' in archive
-    attest = next(s for s in steps if s.get("uses", "").startswith("actions/attest-build-provenance@"))
-    assert attest["continue-on-error"] is True
-    # The already-tagged early return must still write the tag output.
-    exists = text.split("already exists", 1)[1].split("return", 1)[0]
-    assert "GITHUB_OUTPUT" in exists
+    names = [s["name"] for s in steps if "name" in s]
+    assert names.index("Archive the released commit") < names.index("Publish the release")
+    assert names.index("Attest the source archive") < names.index("Publish the release")
+    upload = next(s for s in steps if "gh release upload" in s.get("run", ""))
+    assert "--clobber" in upload["run"]
+    publish = next(s for s in steps if s.get("name") == "Publish the release")
+    assert "--draft=false" in publish["run"]
+    assert publish["if"] == "steps.release.outputs.tag != ''"
+    assert "--draft" in _script()
+    upload_run = next(s for s in steps if s.get("id") == "archive")["run"]
+    assert "${TAG//\\//-}" in upload_run
+    assert 'gh release upload "$TAG"' in upload_run
