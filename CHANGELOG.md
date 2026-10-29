@@ -10,6 +10,18 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+## 2026-10-29 (dated changelog check)
+
+### Fixed
+
+- The reusable `changelog.yml` check now verifies the form of the entry, not just
+  that `CHANGELOG.md` was touched. The diff must add a `## YYYY-MM-DD` heading
+  (optionally `## YYYY-MM-DD (topic)`), or content whose nearest preceding `##`
+  heading is dated; an entry under `## [Unreleased]` alone fails, with a message
+  naming the expected form. Adding a bullet to an existing dated section passes.
+  The rule checks the form, not today's date. Callers pin this workflow by SHA, so
+  each enrolled repo must bump its pin to pick this up.
+
 ## 2026-10-28 (owner bypass)
 
 ### Fixed
