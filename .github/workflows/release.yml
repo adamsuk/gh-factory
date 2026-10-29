@@ -32,7 +32,12 @@ name: Release
 # 3. Each release also gets a source archive of the released commit, `<repo>-<tag>-source.tar.gz`,
 #    with a build provenance attestation. A called workflow can only keep or reduce the permissions
 #    its caller grants, never raise them, so the calling job must itself grant `id-token: write` and
-#    `attestations: write` (as in the example above), or the attestation step fails.
+#    `attestations: write` (as in the example above). Artifact attestations also need a GitHub plan
+#    that supports them (public repos on any plan; private repos need GitHub Enterprise Cloud, see
+#    GitHub's "Using artifact attestations" docs). The attest step has `continue-on-error: true`, so
+#    a caller missing the permissions or the plan still gets its release and archive, but the
+#    attestation is silently skipped (look for the warning on that step) rather than turning the
+#    run red after the release has already shipped. The archive upload is not best effort.
 on:
   workflow_call:
     inputs:
@@ -211,7 +216,12 @@ jobs:
                   version = m.group(1)
                   tag = prefix + version
                   if run("git", "tag", "--list", tag):
-                      print(f"{tag} already exists; nothing to do.")
+                      print(f"{tag} already exists; nothing to create.")
+                      # Still expose the tag so a rerun after a partial failure (release made, archive
+                      # or attestation not) can redo those steps; both are safe to repeat.
+                      if env.get("GITHUB_OUTPUT"):
+                          with open(env["GITHUB_OUTPUT"], "a") as out:
+                              out.write(f"tag={tag}\n")
                       return
                   with open(changelog) as f:
                       notes = section(f.read(), version)
@@ -289,12 +299,19 @@ jobs:
         run: |
           # Same commit, same bytes: git archive stamps entries with the commit time and the
           # built-in gzip writes no name or timestamp.
-          path="${RUNNER_TEMP}/${GITHUB_REPOSITORY#*/}-${TAG}-source.tar.gz"
-          git archive --format=tar.gz --prefix="${GITHUB_REPOSITORY#*/}-${TAG}/" -o "$path" HEAD
-          gh release upload "$TAG" "$path"
+          # A tag_prefix like `release/v` puts a slash in the tag: flatten it for file and directory
+          # names only; the real $TAG is still used for the release upload.
+          name="${GITHUB_REPOSITORY#*/}-${TAG//\//-}"
+          path="${RUNNER_TEMP}/${name}-source.tar.gz"
+          git archive --format=tar.gz --prefix="${name}/" -o "$path" HEAD
+          # --clobber makes a rerun replace the asset instead of failing because it already exists.
+          gh release upload "$TAG" "$path" --clobber
           echo "path=$path" >> "$GITHUB_OUTPUT"
       - name: Attest the source archive
         if: steps.release.outputs.tag != ''
+        # Best effort: a caller that has not granted id-token/attestations, or whose plan has no
+        # artifact attestations, still gets its release and archive; only the attestation is skipped.
+        continue-on-error: true
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: ${{ steps.archive.outputs.path }}

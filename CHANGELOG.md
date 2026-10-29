@@ -17,7 +17,17 @@ that PR tags and publishes the release.
 - `release.yml` now attaches `<repo>-<tag>-source.tar.gz`, a `git archive` of the released commit,
   to each GitHub release and attests it with `actions/attest-build-provenance` (pinned to v4.2.2,
   `4d101475d8b20a2381f78447822ac1eab6504dd8`). Callers must grant `id-token: write` and
-  `attestations: write` on the calling job. README explains `gh attestation verify`.
+  `attestations: write` on the calling job, and a GitHub plan that supports artifact attestations.
+  README explains `gh attestation verify`, pinned with `--signer-workflow` and `--source-digest`.
+- The attest step is `continue-on-error`, so a caller without the permissions or plan keeps its
+  release and archive and only loses the attestation (a warning, not a red run).
+
+### Fixed
+
+- A rerun after a partial failure (tag already exists) now still exposes the tag, so the archive
+  and attest steps run; the archive upload uses `--clobber` so it is safe to repeat.
+- A tag with a slash (`tag_prefix: release/v`) no longer breaks the archive path: `/` becomes `-`
+  in the file and directory name only; the real tag is used for the upload.
 
 ## 2026-10-29 (egress audit)
 

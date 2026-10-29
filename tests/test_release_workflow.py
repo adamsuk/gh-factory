@@ -280,3 +280,18 @@ def test_release_attests_source_archive():
     assert attest["if"] == "steps.release.outputs.tag != ''"
     assert "steps.archive.outputs.path" in attest["with"]["subject-path"]
     assert any("gh release upload" in s.get("run", "") for s in steps)
+
+
+def test_release_archive_is_rerun_safe_and_slash_safe():
+    text = WORKFLOW.read_text()
+    wf = yaml.safe_load(text)
+    steps = wf["jobs"]["release"]["steps"]
+    archive = next(s for s in steps if s.get("id") == "archive")["run"]
+    assert "--clobber" in archive
+    assert "${TAG//\\//-}" in archive
+    assert 'gh release upload "$TAG"' in archive
+    attest = next(s for s in steps if s.get("uses", "").startswith("actions/attest-build-provenance@"))
+    assert attest["continue-on-error"] is True
+    # The already-tagged early return must still write the tag output.
+    exists = text.split("already exists", 1)[1].split("return", 1)[0]
+    assert "GITHUB_OUTPUT" in exists

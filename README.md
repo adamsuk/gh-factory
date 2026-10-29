@@ -33,8 +33,15 @@ To check that a release file really came from this repo's release workflow, down
 `gh-factory-vX.Y.Z-source.tar.gz` asset from the release and run:
 
 ```sh
-gh attestation verify gh-factory-vX.Y.Z-source.tar.gz --repo adamsuk/gh-factory
+gh attestation verify gh-factory-vX.Y.Z-source.tar.gz \
+  --repo adamsuk/gh-factory \
+  --signer-workflow adamsuk/gh-factory/.github/workflows/release.yml \
+  --source-digest "$(git rev-parse vX.Y.Z^{commit})"
 ```
+
+`--signer-workflow` pins the attestation to the release workflow (any other workflow in the repo
+is rejected) and `--source-digest` pins it to the commit the tag points at, so run the `git
+rev-parse` in a clone of the repo.
 
 It passes only if GitHub holds a signed record that this repo's workflow built that exact file
 (matched by its SHA-256 digest); a changed or foreign file fails. `gh attestation verify` also
@@ -336,7 +343,11 @@ with `git archive`, plus a signed [build provenance attestation](https://docs.gi
 for it. It says which repo, workflow and commit produced that exact file, and covers only the
 release commit, not whatever the repo separately builds or deploys. A called workflow can only keep
 or lower the permissions its caller grants, so the calling job must grant `id-token: write` and
-`attestations: write` as well (see the example below), or the attestation step fails.
+`attestations: write` as well (see the example below). Artifact attestations also need a GitHub
+plan that supports them (public repos on any plan; private repos need GitHub Enterprise Cloud;
+check GitHub's docs). The attest step is `continue-on-error`, so a caller missing the permissions
+or the plan still gets its release and archive, but no attestation: the step shows a warning, not
+a red run. A rerun after a partial failure uploads the archive again (`--clobber`) and re-attests.
 
 Why a release PR and not a direct commit: the `factory-main` ruleset blocks pushes to main, and
 letting GitHub Actions bypass it would weaken it for every workflow (gh-factory also reports a
