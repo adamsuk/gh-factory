@@ -10,6 +10,21 @@ that PR tags and publishes the release.
 
 ## [Unreleased]
 
+## 2026-10-29 (dated changelog check)
+
+### Fixed
+
+- The reusable `changelog.yml` check now verifies the form of the entry, not just
+  that `CHANGELOG.md` was touched. The diff must add a `## YYYY-MM-DD` heading
+  (optionally `## YYYY-MM-DD (topic)`), or content whose nearest preceding `##`
+  heading is dated; an entry under `## [Unreleased]` alone fails, with a message
+  naming the expected form. Adding a bullet to an existing dated section passes.
+  A dated heading the PR adds must fall within 3 days before through 1 day after
+  today (Europe/London, inclusive), so a stale heading copied from an old entry
+  fails with a message naming the window. The window does not apply to a bullet
+  added under a dated heading already in the file. Callers pin this workflow by SHA, so
+  each enrolled repo must bump its pin to pick this up.
+
 ## 2026-10-29 (mutation testing)
 
 ### Added
