@@ -338,14 +338,17 @@ jobs:
           echo "path=$path" >> "$GITHUB_OUTPUT"
       - name: Attest the source archive
         if: steps.release.outputs.tag != ''
-        # Best effort: a caller that has not granted id-token/attestations, or whose plan has no
-        # artifact attestations, still gets its release and archive; only the attestation is skipped.
+        # Best effort, by design: publishing (below) does not wait on this succeeding. A release can
+        # exist with its archive but no verified attestation for a caller whose permissions or plan
+        # do not support it. That is the deliberate trade-off -- every caller still gets its release
+        # -- over a stricter one where no release ships without provenance.
         continue-on-error: true
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: ${{ steps.archive.outputs.path }}
       # Last, and only if the upload above actually succeeded: publishing makes the draft (and its
       # tag) final. Immutable-release callers accept the asset because it was uploaded pre-publish.
+      # Not gated on the attest step above succeeding -- see its comment for why.
       - name: Publish the release
         if: steps.release.outputs.tag != ''
         env:

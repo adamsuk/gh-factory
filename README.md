@@ -353,8 +353,10 @@ pricing page -- confirm against current docs before relying on it). The release 
 draft, the archive is uploaded to it, and only then is it published, so this works with immutable
 releases too. The attest step is `continue-on-error`, so once the permissions/plan question is
 settled for a caller, one still missing them keeps its release and archive but shows a warning
-instead of a red run. A rerun after a partial failure resumes the same draft and re-uploads
-(`--clobber`); a tag that already exists on a different commit is left alone as unrelated.
+instead of a red run. **Publishing is not gated on attestation succeeding** -- this is deliberate:
+every caller still gets its release and archive even without a verified attestation, rather than no
+release at all. A rerun after a partial failure resumes the same draft and re-uploads (`--clobber`);
+a tag that already exists on a different commit is left alone as unrelated.
 
 Why a release PR and not a direct commit: the `factory-main` ruleset blocks pushes to main, and
 letting GitHub Actions bypass it would weaken it for every workflow (gh-factory also reports a
