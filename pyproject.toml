@@ -10,6 +10,8 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
+# Report-only mutation testing (.github/workflows/mutation.yml); kept out of `dev` so the test matrix stays lean.
+mutation = ["mutmut==3.8.1"]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -30,3 +32,8 @@ extend-exclude = ["src/factory/_vendor"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+
+[tool.mutmut]
+source_paths = ["src/factory/"]
+pytest_add_cli_args_test_selection = ["tests/"]
+do_not_mutate = ["src/factory/_vendor/*"]
