@@ -18,7 +18,7 @@ jobs:
       matrix:
         python: ["3.10", "3.13"]
     steps:
-      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           # Hosts from this job's Harden-Runner audit-mode log (adamsuk/software-factory#305).
           # One list for both matrix legs: 3.10 also fetched its interpreter (api.github.com, release-assets).
@@ -42,7 +42,7 @@ jobs:
     name: Extension runs with bare python3
     runs-on: ubuntu-latest
     steps:
-      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           # Hosts from this job's Harden-Runner audit-mode log (adamsuk/software-factory#305).
           egress-policy: block
@@ -66,7 +66,7 @@ jobs:
     name: Lint workflows
     runs-on: ubuntu-latest
     steps:
-      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           # Hosts from this job's Harden-Runner audit-mode log (adamsuk/software-factory#305).
           # actionlint's installer comes from raw.githubusercontent.com and its release asset.
